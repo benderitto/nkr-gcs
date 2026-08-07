@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+venv/
+.venv/
+
+# Qt
+*.qmlc
+
+# VSCode
+.vscode/
+
+# JetBrains
+.idea/
+
+# Linux
+*.swp
+*~
+
+# Build
+build/
+dist/
+*.egg-info/
+
+# Logs
+*.log
+
+# Environment
+.env

@@ -1,0 +1,66 @@
+"""
+NKR Protocol v1 constants
+"""
+
+MAGIC = 0x4E4B          # "NK"
+VERSION = 1
+
+TYPE_CONTROL = 1
+TYPE_TELEMETRY = 2
+TYPE_HEARTBEAT = 3
+TYPE_CONFIG = 4
+
+#MAX_AXIS = 1000
+
+BUTTON_A = 1 << 0
+BUTTON_B = 1 << 1
+BUTTON_X = 1 << 2
+BUTTON_Y = 1 << 3
+
+BUTTON_L1 = 1 << 4
+BUTTON_R1 = 1 << 5
+
+BUTTON_L2 = 1 << 6
+BUTTON_R2 = 1 << 7
+
+BUTTON_L4 = 1 << 8
+BUTTON_R4 = 1 << 9
+
+BUTTON_L5 = 1 << 10
+BUTTON_R5 = 1 << 11
+
+BUTTON_VIEW = 1 << 12
+BUTTON_MENU = 1 << 13
+
+BUTTON_STEAM = 1 << 14
+BUTTON_QUICK = 1 << 15
+#
+# Manual drive modes
+#
+
+MODE_KEEP = 0
+
+MODE_FRONT_STEER = 1
+MODE_TANK = 2
+MODE_CRAB = 3
+MODE_FRONT_DRIVE = 4
+MODE_REAR_DRIVE = 5
+
+#
+# Autonomous modes
+#
+
+MODE_AUTO = 10
+MODE_FOLLOW = 11
+MODE_RTH = 12
+MODE_MISSION = 13
+
+#
+# Axis encoding
+#
+
+AXIS_SCALE = 1000.0
+
+AXIS_MIN = -1.0
+AXIS_MAX = 1.0
+MODE_INVALID = 255
