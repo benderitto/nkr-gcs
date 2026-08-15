@@ -10,6 +10,8 @@ def test_missing_settings_are_created(tmp_path):
     assert settings == Settings()
     assert path.exists()
     assert "video_port: 8554" in path.read_text(encoding="utf-8")
+    assert "video_width: 640" in path.read_text(encoding="utf-8")
+    assert "video_height: 480" in path.read_text(encoding="utf-8")
 
 
 def test_linux_settings_path_uses_xdg(monkeypatch, tmp_path):

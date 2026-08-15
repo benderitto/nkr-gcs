@@ -1,8 +1,9 @@
 # Installing NKR GCS
 
 NKR GCS uses one Python/PySide6 codebase on SteamOS, Linux, and Windows. Linux
-packages use the native GStreamer video backend. Windows packages use the
-bundled PyAV/FFmpeg backend. Controller input is provided by SDL2 on every
+packages use the native GStreamer video backend. Windows packages include a
+private GStreamer runtime and retain bundled PyAV/FFmpeg as a fallback.
+Controller input is provided by SDL2 on every
 platform.
 
 ## Steam Deck (recommended)
@@ -69,8 +70,8 @@ NKR_GCS_CONFIG="$PWD/config/settings.yaml" nkr-gcs
    [latest GitHub Release](https://github.com/benderitto/nkr-gcs/releases/latest).
 4. Start `nkr-gcs.exe` from the extracted directory.
 
-The Windows package contains Python, Qt, SDL2, and FFmpeg/PyAV. It does not
-require a system Python or GStreamer installation. Settings are created at:
+The Windows package contains Python, Qt, SDL2, GStreamer, and FFmpeg/PyAV. It
+does not require a system Python or GStreamer installation. Settings are created at:
 
 ```text
 %APPDATA%\NKR-GCS\settings.yaml
@@ -95,6 +96,8 @@ video_host: 100.72.220.66
 video_port: 8554
 video_default_stream: cam_front
 video_low_latency_mode: true
+video_width: 640
+video_height: 480
 ```
 
 Set `NKR_GCS_CONFIG` to use an explicit configuration file during development

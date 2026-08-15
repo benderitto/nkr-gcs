@@ -3,9 +3,12 @@
 from collections import deque
 from enum import Enum
 import logging
+import os
 import statistics
+import subprocess
 import threading
 import time
+from pathlib import Path
 
 from PySide6.QtCore import QRect, QTimer, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QImage, QPainter
@@ -31,6 +34,11 @@ from .latency_marker import (
     BLOCK_WIDTH, DATA_WIDTH, MARKER_HEIGHT, MARKER_WIDTH,
     calculate_video_latency_ms, measure_video_latency_ms,
 )
+from .gstreamer_process import (
+    build_gstreamer_command,
+    find_gst_launch,
+    gstreamer_environment,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +55,7 @@ class VideoWidget(QWidget):
     """Render the newest decoded frame without a browser or queued old frames."""
 
     frame_ready = Signal(QImage)
-    pyav_frame_ready = Signal(int, QImage)
+    portable_frame_ready = Signal(int)
     backend_failed = Signal(int, str)
 
     def __init__(self, parent=None):
@@ -61,6 +69,11 @@ class VideoWidget(QWidget):
         self._frame = None
         self._av_stop = None
         self._av_thread = None
+        self._gst_process = None
+        self._gst_process_stop = None
+        self._gst_process_thread = None
+        self._active_backend = None
+        self._current_url = None
         self._video_generation = 0
         self._shutting_down = False
         self._retry_attempt = 0
@@ -72,9 +85,12 @@ class VideoWidget(QWidget):
         self._invalid_latency_frames = 0
         self._last_latency_warning = 0.0
         self._last_popup = {}
+        self._portable_frame_lock = threading.Lock()
+        self._portable_frame = None
+        self._portable_notification_pending = False
         self.frame_ready.connect(self._on_frame, Qt.ConnectionType.QueuedConnection)
-        self.pyav_frame_ready.connect(
-            self._on_pyav_frame, Qt.ConnectionType.QueuedConnection)
+        self.portable_frame_ready.connect(
+            self._on_portable_frame, Qt.ConnectionType.QueuedConnection)
         self.backend_failed.connect(
             self._on_backend_failed, Qt.ConnectionType.QueuedConnection)
         self._retry_timer = QTimer(self)
@@ -144,11 +160,8 @@ class VideoWidget(QWidget):
                 self.size(), Qt.AspectRatioMode.KeepAspectRatio)
             x = (self.width() - target.width()) // 2
             y = (self.height() - target.height()) // 2
-            painter.drawImage(x, y, self._frame.scaled(
-                target,
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.FastTransformation,
-            ))
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+            painter.drawImage(QRect(x, y, target.width(), target.height()), self._frame)
             return
         painter.setPen(QColor("white"))
         painter.setFont(QFont("Arial", 20))
@@ -168,7 +181,8 @@ class VideoWidget(QWidget):
     def _connect_current_stream(self, reconnecting=False) -> None:
         if self._shutting_down:
             return
-        if Gst is None and av is None:
+        gst_launch = find_gst_launch() if Gst is None else None
+        if Gst is None and gst_launch is None and av is None:
             logger.error("Neither GStreamer nor PyAV is available")
             self._set_lost()
             return
@@ -178,8 +192,12 @@ class VideoWidget(QWidget):
             return
         url = build_stream_url(
             self.settings.video_host, self.settings.video_port, self.stream)
+        self._current_url = url
         self._set_state(
             VideoState.RECONNECTING if reconnecting else VideoState.CONNECTING)
+        if Gst is None and gst_launch is not None:
+            self._start_gstreamer_process(url, gst_launch)
+            return
         if Gst is None:
             self._start_pyav(url)
             return
@@ -192,6 +210,7 @@ class VideoWidget(QWidget):
         )
         try:
             self._pipeline = Gst.parse_launch(description)
+            self._active_backend = "gstreamer-native"
             self._pipeline.get_by_name("source").set_property("location", url)
             sink = self._pipeline.get_by_name("sink")
             sink.connect("new-sample", self._new_sample)
@@ -206,8 +225,127 @@ class VideoWidget(QWidget):
             self._stop_pipeline()
             self._set_lost()
 
+    def _start_gstreamer_process(self, url: str, executable: Path) -> None:
+        """Start the bundled GStreamer runtime without requiring PyGObject."""
+        command = build_gstreamer_command(
+            executable, url, self.settings.video_width, self.settings.video_height,
+        )
+        environment = gstreamer_environment(executable)
+        creationflags = (
+            getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            if os.name == "nt" else 0
+        )
+        try:
+            process = subprocess.Popen(
+                command,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                bufsize=0,
+                env=environment,
+                creationflags=creationflags,
+            )
+        except OSError:
+            logger.exception("Unable to start bundled GStreamer")
+            self._start_pyav(url)
+            return
+        stop_event = threading.Event()
+        generation = self._video_generation
+        self._gst_process = process
+        self._gst_process_stop = stop_event
+        self._active_backend = "gstreamer-process"
+        self._gst_process_thread = threading.Thread(
+            target=self._run_gstreamer_process,
+            args=(process, stop_event, generation),
+            name=f"nkr-gstreamer-{generation}",
+            daemon=True,
+        )
+        self._gst_process_thread.start()
+        logger.info(
+            "Bundled GStreamer connecting to %s at %dx%d",
+            url, self.settings.video_width, self.settings.video_height,
+        )
+
+    def _run_gstreamer_process(
+        self, process, stop_event: threading.Event, generation: int,
+    ) -> None:
+        width = self.settings.video_width
+        height = self.settings.video_height
+        frame_size = width * height * 3
+        failure = None
+        stderr_chunks = deque(maxlen=64)
+        stderr_worker = threading.Thread(
+            target=self._drain_pipe,
+            args=(process.stderr, stderr_chunks),
+            name=f"nkr-gstreamer-errors-{generation}",
+            daemon=True,
+        )
+        stderr_worker.start()
+        try:
+            while not stop_event.is_set():
+                pixels = self._read_exact(process.stdout, frame_size, stop_event)
+                if pixels is None:
+                    break
+                image = QImage(
+                    pixels, width, height, width * 3,
+                    QImage.Format.Format_RGB888,
+                ).copy()
+                self._publish_portable_frame(generation, image)
+        except Exception as exc:
+            failure = f"Bundled GStreamer read error: {type(exc).__name__}: {exc}"
+        finally:
+            if process.poll() is None and not stop_event.is_set():
+                try:
+                    process.wait(timeout=2.0)
+                except subprocess.TimeoutExpired:
+                    failure = failure or "Bundled GStreamer did not exit after EOF"
+                    process.terminate()
+                    try:
+                        process.wait(timeout=1.0)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait(timeout=1.0)
+            stderr_worker.join(timeout=1.0)
+            if not stop_event.is_set():
+                stderr = b"".join(stderr_chunks)
+                detail = stderr.decode("utf-8", errors="replace").strip()[-1000:]
+                message = failure or "Bundled GStreamer stream ended"
+                if detail:
+                    message = f"{message}: {detail}"
+                self.backend_failed.emit(generation, message)
+
+    @staticmethod
+    def _read_exact(pipe, size: int, stop_event: threading.Event):
+        data = bytearray(size)
+        view = memoryview(data)
+        position = 0
+        while position < size and not stop_event.is_set():
+            count = pipe.readinto(view[position:])
+            if not count:
+                return None
+            position += count
+        return bytes(data) if position == size else None
+
+    @staticmethod
+    def _drain_pipe(pipe, chunks) -> None:
+        """Keep bounded subprocess diagnostics without blocking video output."""
+        if pipe is None:
+            return
+        try:
+            while True:
+                chunk = pipe.read(4096)
+                if not chunk:
+                    return
+                chunks.append(chunk)
+        except OSError:
+            return
+
     def _start_pyav(self, url: str) -> None:
-        """Start the portable FFmpeg backend used on Windows."""
+        """Start the portable FFmpeg fallback backend."""
+        if av is None:
+            logger.error("PyAV fallback is unavailable")
+            self._set_lost()
+            return
         logger.info(
             "PyAV backend version=%s libraries=%s",
             getattr(av, "__version__", "unknown"),
@@ -216,6 +354,7 @@ class VideoWidget(QWidget):
         stop_event = threading.Event()
         generation = self._video_generation
         self._av_stop = stop_event
+        self._active_backend = "pyav"
         self._av_thread = threading.Thread(
             target=self._run_pyav,
             args=(url, stop_event, generation),
@@ -254,7 +393,7 @@ class VideoWidget(QWidget):
                     bytes(plane), rgb.width, rgb.height, plane.line_size,
                     QImage.Format.Format_RGB888,
                 ).copy()
-                self.pyav_frame_ready.emit(generation, image)
+                self._publish_portable_frame(generation, image)
             if not stop_event.is_set():
                 self.backend_failed.emit(
                     generation, "Portable video stream ended")
@@ -269,7 +408,25 @@ class VideoWidget(QWidget):
             if container is not None:
                 container.close()
 
-    def _on_pyav_frame(self, generation: int, image: QImage) -> None:
+    def _publish_portable_frame(self, generation: int, image: QImage) -> None:
+        """Replace an undrawn frame so the Qt event queue cannot add latency."""
+        should_notify = False
+        with self._portable_frame_lock:
+            self._portable_frame = (generation, image)
+            if not self._portable_notification_pending:
+                self._portable_notification_pending = True
+                should_notify = True
+        if should_notify:
+            self.portable_frame_ready.emit(generation)
+
+    def _on_portable_frame(self, _generation: int) -> None:
+        with self._portable_frame_lock:
+            frame = self._portable_frame
+            self._portable_frame = None
+            self._portable_notification_pending = False
+        if frame is None:
+            return
+        generation, image = frame
         if generation != self._video_generation or self._shutting_down:
             return
         self._on_frame(image)
@@ -278,7 +435,15 @@ class VideoWidget(QWidget):
         if generation != self._video_generation or self._shutting_down:
             return
         logger.warning("%s", message)
+        failed_backend = self._active_backend
+        url = self._current_url
         self._stop_pipeline()
+        if failed_backend == "gstreamer-process" and url is not None and av is not None:
+            logger.warning("Bundled GStreamer failed; falling back to PyAV")
+            self._set_state(VideoState.RECONNECTING)
+            self._current_url = url
+            self._start_pyav(url)
+            return
         self._set_lost()
 
     def _new_sample(self, sink):
@@ -387,6 +552,27 @@ class VideoWidget(QWidget):
         # Invalidate queued frames/errors before stopping native backends.
         self._video_generation += 1
         self._bus_timer.stop()
+        process_stop = self._gst_process_stop
+        process_worker = self._gst_process_thread
+        process = self._gst_process
+        if process_stop is not None:
+            process_stop.set()
+        if process is not None and process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=2.0)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=1.0)
+        process_stopped = process is None or process.poll() is not None
+        if (process_worker is not None
+                and process_worker is not threading.current_thread()):
+            process_worker.join(timeout=2.0)
+            process_stopped = process_stopped and not process_worker.is_alive()
+        if process_stopped:
+            self._gst_process = None
+            self._gst_process_stop = None
+            self._gst_process_thread = None
         stop_event = self._av_stop
         worker = self._av_thread
         if stop_event is not None:
@@ -404,9 +590,13 @@ class VideoWidget(QWidget):
             pipeline.set_state(Gst.State.NULL)
         self._latency_samples.clear()
         self._invalid_latency_frames = 0
+        self._active_backend = None
+        with self._portable_frame_lock:
+            self._portable_frame = None
+            self._portable_notification_pending = False
         if self._latency_listener is not None:
             self._latency_listener(None)
-        return worker_stopped
+        return process_stopped and worker_stopped
 
     def _set_lost(self) -> None:
         self._set_state(VideoState.VIDEO_LOST)

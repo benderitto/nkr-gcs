@@ -16,11 +16,15 @@ class Settings:
     video_port: int = 8554
     video_default_stream: str = "cam_front"
     video_low_latency_mode: bool = True
+    video_width: int = 640
+    video_height: int = 480
     input_device: str = "steamdeck"
 
     def __post_init__(self):
         if self.video_host is None:
             object.__setattr__(self, "video_host", self.robot_host)
+        if not 1 <= self.video_width <= 7680 or not 1 <= self.video_height <= 4320:
+            raise ValueError("Invalid configured video dimensions")
 
 
 def load_settings(path: Path | None = None) -> Settings:
@@ -46,6 +50,8 @@ def load_settings(path: Path | None = None) -> Settings:
         video_low_latency_mode=_as_bool(
             values.get("video_low_latency_mode", Settings.video_low_latency_mode),
         ),
+        video_width=int(values.get("video_width", Settings.video_width)),
+        video_height=int(values.get("video_height", Settings.video_height)),
         input_device=values.get("input_device", Settings.input_device),
     )
 
@@ -75,6 +81,8 @@ def _write_default_settings(path: Path) -> None:
         f"video_port: {defaults.video_port}\n"
         f"video_default_stream: {defaults.video_default_stream}\n"
         f"video_low_latency_mode: {str(defaults.video_low_latency_mode).lower()}\n"
+        f"video_width: {defaults.video_width}\n"
+        f"video_height: {defaults.video_height}\n"
         f"input_device: {defaults.input_device}\n",
         encoding="utf-8",
     )

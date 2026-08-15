@@ -25,10 +25,12 @@ class Application(QObject):
         self._closed = False
         self.settings = load_settings()
         logger.info(
-            "Configuration loaded: robot=%s:%d video=%s:%d/%s input=%s",
+            "Configuration loaded: robot=%s:%d video=%s:%d/%s %dx%d input=%s",
             self.settings.robot_host, self.settings.robot_port,
             self.settings.video_host, self.settings.video_port,
-            self.settings.video_default_stream, self.settings.input_device,
+            self.settings.video_default_stream,
+            self.settings.video_width, self.settings.video_height,
+            self.settings.input_device,
         )
 
         self.operator = OperatorModel()

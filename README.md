@@ -24,9 +24,9 @@ pip install -e '.[test]'
 NKR_GCS_CONFIG="$PWD/config/settings.yaml" nkr-gcs
 ```
 
-Video uses native low-latency RTSP rather than a browser. Linux uses GStreamer;
-Windows uses the bundled PyAV/FFmpeg backend. The receive queue keeps only the
-newest frame.
+Video uses native low-latency RTSP rather than a browser. Linux uses GStreamer
+in-process; Windows ships a private GStreamer runtime and uses PyAV/FFmpeg only
+as an automatic fallback. Every backend keeps only the newest frame.
 
 The HUD `LATENCY` value is the measured capture-to-display delay of the current
 video frame. The robot embeds a hidden Gray-coded UTC timestamp in the bottom
@@ -52,8 +52,10 @@ other axes and buttons keep the Steam Deck bindings. The selection persists
 across application restarts.
 
 Video options in `config/settings.yaml` are `video_enabled`, `video_host`,
-`video_port`, `video_default_stream`, and `video_low_latency_mode`. The host
-defaults to `robot_host` when omitted.
+`video_port`, `video_default_stream`, `video_low_latency_mode`, `video_width`,
+and `video_height`. The host defaults to `robot_host` when omitted. The width
+and height must match the robot stream; use `640×480` for the current Sonix
+camera and `1920×1080` after a native 1080p camera is installed.
 
 Network settings are explicit in `config/settings.yaml`. The GCS opens one
 long-lived non-blocking UDP socket, sends a session hello on startup, accepts a

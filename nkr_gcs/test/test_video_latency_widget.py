@@ -84,7 +84,25 @@ def test_stale_portable_frame_is_ignored_after_camera_switch():
     image = QImage(640, 480, QImage.Format.Format_RGB888)
     widget._video_generation = 4
 
-    widget._on_pyav_frame(3, image)
+    widget._publish_portable_frame(3, image)
+    widget._on_portable_frame(3)
 
     assert widget._frame is None
+    widget.close()
+
+
+def test_portable_mailbox_keeps_only_the_latest_frame():
+    _app()
+    widget = VideoWidget()
+    widget._video_generation = 2
+    first = QImage(640, 480, QImage.Format.Format_RGB888)
+    second = QImage(640, 480, QImage.Format.Format_RGB888)
+    first.fill(QColor("red"))
+    second.fill(QColor("blue"))
+
+    widget._publish_portable_frame(2, first)
+    widget._publish_portable_frame(2, second)
+    widget._on_portable_frame(2)
+
+    assert widget._frame.pixelColor(20, 20) == QColor("blue")
     widget.close()

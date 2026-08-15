@@ -186,6 +186,11 @@ Supported cameras:
 
 VideoManager knows nothing about HUD.
 
+Linux/SteamOS use the in-process GStreamer API. Windows launches the private
+GStreamer runtime shipped beside the executable and reads a framed raw-RGB
+pipe; PyAV is retained only as an automatic recovery backend. The portable
+frame mailbox replaces an unpainted frame instead of queueing it.
+
 ---
 
 # CameraManager
@@ -221,6 +226,9 @@ timestamp, and reporting capture-to-display latency.
 The marker is removed before the frame is painted. UTC correction comes from a
 background SNTP synchronizer; unavailable or stale synchronization yields no
 latency value.
+
+Video is painted directly into its aspect-ratio-preserving target rectangle
+with Qt smooth transformation. No intermediate enlarged image is allocated.
 
 No robot-control networking.
 
