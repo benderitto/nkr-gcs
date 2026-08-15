@@ -15,11 +15,20 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y flatpak flatpak-builder
           flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+      - name: Install Flatpak SDKs
+        run: |
+          flatpak install --user --noninteractive -y flathub \
+            org.kde.Platform//6.10 \
+            org.kde.Sdk//6.10 \
+            io.qt.PySide.BaseApp//6.10
+      - name: Build Flatpak bundle
+        run: |
+          flatpak-builder --user --force-clean --repo=flatpak-repo build-dir ua.nkr.GCS.yml
+          flatpak build-bundle flatpak-repo nkr-gcs.flatpak ua.nkr.GCS
+      - uses: actions/upload-artifact@v4
         with:
-          bundle: nkr-gcs.flatpak
-          manifest-path: ua.nkr.GCS.yml
-          cache-key: flatpak-builder-${{ github.sha }}
+          name: nkr-gcs-linux-flatpak
+          path: nkr-gcs.flatpak
 
   windows:
     runs-on: windows-latest
