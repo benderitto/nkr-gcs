@@ -19,6 +19,7 @@ modules:
     sources:
       - type: archive
         url: https://github.com/pygobject/pycairo/releases/download/v1.29.0/pycairo-1.29.0.tar.gz
+        sha256: f3f7fde97325cae80224c09f12564ef58d0d0f655da0e3b040f5807bd5bd3142
 
   - name: pygobject
     buildsystem: meson
@@ -26,7 +27,8 @@ modules:
       - -Dtests=false
     sources:
       - type: archive
-        url: https://download.gnome.org/sources/pygobject/3.52/pygobject-3.52.3.tar.xz
+        url: https://download.gnome.org/sources/pygobject/3.52/pygobject-3.52.3.tar.gz
+        sha256: 00e427d291e957462a8fad659a9f9c8be776ff82a8b76bdf402f1eaeec086d82
 
   - python3-requirements.json
 
