@@ -44,24 +44,32 @@ jobs:
       - name: Smoke-test Windows executable
         shell: pwsh
         run: |
+          function Stop-SmokeTest([string] $message, [string] $diagnostics = "") {
+            $details = if ($diagnostics) { "$message`n`n$diagnostics" } else { $message }
+            $annotation = $details.Replace("%", "%25").Replace("`r", "").Replace("`n", "%0A")
+            Write-Host "::error title=NKR GCS Windows smoke test::$annotation"
+            throw $message
+          }
           $log = Join-Path $env:APPDATA "NKR-GCS\nkr-gcs.log"
           Remove-Item $log -ErrorAction SilentlyContinue
           $process = Start-Process ".\dist\nkr-gcs\nkr-gcs.exe" -PassThru
           try {
             Start-Sleep -Seconds 8
+            $content = if (Test-Path $log) { Get-Content $log -Raw } else { "" }
             if ($process.HasExited) {
-              throw "nkr-gcs.exe exited during startup with code $($process.ExitCode)"
+              Stop-SmokeTest `
+                "nkr-gcs.exe exited during startup with code $($process.ExitCode)" `
+                $content
             }
             if (-not (Test-Path $log)) {
-              throw "Packaged GCS did not create its diagnostic log"
+              Stop-SmokeTest "Packaged GCS did not create its diagnostic log"
             }
-            $content = Get-Content $log -Raw
             Write-Host $content
             if ($content -notmatch "Main update loop started") {
-              throw "Packaged GCS did not enter its Qt update loop"
+              Stop-SmokeTest "Packaged GCS did not enter its Qt update loop" $content
             }
             if ($content -notmatch "hello sent; waiting for challenge") {
-              throw "Packaged GCS did not start UDP negotiation"
+              Stop-SmokeTest "Packaged GCS did not start UDP negotiation" $content
             }
           }
           finally {
