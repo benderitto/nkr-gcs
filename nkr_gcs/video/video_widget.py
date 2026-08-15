@@ -54,8 +54,7 @@ class VideoState(Enum):
 class VideoWidget(QWidget):
     """Render the newest decoded frame without a browser or queued old frames."""
 
-    frame_ready = Signal(QImage)
-    portable_frame_ready = Signal(int)
+    latest_frame_ready = Signal(int)
     backend_failed = Signal(int, str)
 
     def __init__(self, parent=None):
@@ -85,12 +84,11 @@ class VideoWidget(QWidget):
         self._invalid_latency_frames = 0
         self._last_latency_warning = 0.0
         self._last_popup = {}
-        self._portable_frame_lock = threading.Lock()
-        self._portable_frame = None
-        self._portable_notification_pending = False
-        self.frame_ready.connect(self._on_frame, Qt.ConnectionType.QueuedConnection)
-        self.portable_frame_ready.connect(
-            self._on_portable_frame, Qt.ConnectionType.QueuedConnection)
+        self._latest_frame_lock = threading.Lock()
+        self._latest_frame = None
+        self._latest_notification_pending = False
+        self.latest_frame_ready.connect(
+            self._on_latest_frame, Qt.ConnectionType.QueuedConnection)
         self.backend_failed.connect(
             self._on_backend_failed, Qt.ConnectionType.QueuedConnection)
         self._retry_timer = QTimer(self)
@@ -213,7 +211,7 @@ class VideoWidget(QWidget):
             self._active_backend = "gstreamer-native"
             self._pipeline.get_by_name("source").set_property("location", url)
             sink = self._pipeline.get_by_name("sink")
-            sink.connect("new-sample", self._new_sample)
+            sink.connect("new-sample", self._new_sample, self._video_generation)
             self._bus = self._pipeline.get_bus()
             result = self._pipeline.set_state(Gst.State.PLAYING)
             if result == Gst.StateChangeReturn.FAILURE:
@@ -290,7 +288,7 @@ class VideoWidget(QWidget):
                     pixels, width, height, width * 3,
                     QImage.Format.Format_RGB888,
                 ).copy()
-                self._publish_portable_frame(generation, image)
+                self._publish_latest_frame(generation, image)
         except Exception as exc:
             failure = f"Bundled GStreamer read error: {type(exc).__name__}: {exc}"
         finally:
@@ -393,7 +391,7 @@ class VideoWidget(QWidget):
                     bytes(plane), rgb.width, rgb.height, plane.line_size,
                     QImage.Format.Format_RGB888,
                 ).copy()
-                self._publish_portable_frame(generation, image)
+                self._publish_latest_frame(generation, image)
             if not stop_event.is_set():
                 self.backend_failed.emit(
                     generation, "Portable video stream ended")
@@ -408,22 +406,22 @@ class VideoWidget(QWidget):
             if container is not None:
                 container.close()
 
-    def _publish_portable_frame(self, generation: int, image: QImage) -> None:
+    def _publish_latest_frame(self, generation: int, image: QImage) -> None:
         """Replace an undrawn frame so the Qt event queue cannot add latency."""
         should_notify = False
-        with self._portable_frame_lock:
-            self._portable_frame = (generation, image)
-            if not self._portable_notification_pending:
-                self._portable_notification_pending = True
+        with self._latest_frame_lock:
+            self._latest_frame = (generation, image)
+            if not self._latest_notification_pending:
+                self._latest_notification_pending = True
                 should_notify = True
         if should_notify:
-            self.portable_frame_ready.emit(generation)
+            self.latest_frame_ready.emit(generation)
 
-    def _on_portable_frame(self, _generation: int) -> None:
-        with self._portable_frame_lock:
-            frame = self._portable_frame
-            self._portable_frame = None
-            self._portable_notification_pending = False
+    def _on_latest_frame(self, _generation: int) -> None:
+        with self._latest_frame_lock:
+            frame = self._latest_frame
+            self._latest_frame = None
+            self._latest_notification_pending = False
         if frame is None:
             return
         generation, image = frame
@@ -446,7 +444,7 @@ class VideoWidget(QWidget):
             return
         self._set_lost()
 
-    def _new_sample(self, sink):
+    def _new_sample(self, sink, generation: int):
         sample = sink.emit("pull-sample")
         if sample is None:
             return Gst.FlowReturn.ERROR
@@ -464,7 +462,7 @@ class VideoWidget(QWidget):
                 pixels, width, height, stride, QImage.Format.Format_RGB888).copy()
         finally:
             buffer.unmap(mapped)
-        self.frame_ready.emit(image)
+        self._publish_latest_frame(generation, image)
         return Gst.FlowReturn.OK
 
     def _on_frame(self, image: QImage) -> None:
@@ -591,9 +589,9 @@ class VideoWidget(QWidget):
         self._latency_samples.clear()
         self._invalid_latency_frames = 0
         self._active_backend = None
-        with self._portable_frame_lock:
-            self._portable_frame = None
-            self._portable_notification_pending = False
+        with self._latest_frame_lock:
+            self._latest_frame = None
+            self._latest_notification_pending = False
         if self._latency_listener is not None:
             self._latency_listener(None)
         return process_stopped and worker_stopped

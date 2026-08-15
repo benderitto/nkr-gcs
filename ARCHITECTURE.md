@@ -188,8 +188,9 @@ VideoManager knows nothing about HUD.
 
 Linux/SteamOS use the in-process GStreamer API. Windows launches the private
 GStreamer runtime shipped beside the executable and reads a framed raw-RGB
-pipe; PyAV is retained only as an automatic recovery backend. The portable
-frame mailbox replaces an unpainted frame instead of queueing it.
+pipe; PyAV is retained only as an automatic recovery backend. Every decoder
+publishes through one frame mailbox that replaces an unpainted frame instead
+of queueing it.
 
 ---
 
