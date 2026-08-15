@@ -1,7 +1,9 @@
 import sys
 import logging
+import os
 import platform
 
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
 from .main_window import MainWindow
@@ -27,4 +29,12 @@ def main():
     controller = Application(window)
     app.aboutToQuit.connect(controller.close)
 
-    sys.exit(app.exec())
+    smoke_exit_ms = os.environ.get("NKR_GCS_SMOKE_EXIT_MS")
+    if smoke_exit_ms:
+        QTimer.singleShot(int(smoke_exit_ms), app.quit)
+
+    try:
+        exit_code = app.exec()
+    finally:
+        controller.close()
+    sys.exit(exit_code)

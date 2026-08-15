@@ -42,6 +42,8 @@ kiosk mode. This does not change the UDP View button mapping. In kiosk mode,
 R4 opens/closes the in-flight OSD menu; the same menu opens by
 tapping the top-right hamburger icon.
 
+Press `Ctrl+Shift+Q` to close GCS cleanly on Windows, Linux, or Steam Deck.
+
 Select a controller profile in **GCS Menu → App Settings → Input Device**.
 Steam Deck keeps the existing bindings. On Xbox Controller, hold Menu for two
 seconds to arm or tap it to disarm; View retains the Steam Deck View function.

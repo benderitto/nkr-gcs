@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QApplication
 
 from nkr_gcs.hud.hud_widget import HUDWidget
 from nkr_gcs.hud.osd_menu import OSDMenu
+from nkr_gcs.main_window import MainWindow
 from nkr_gcs.model.robot_model import RobotModel
 
 
@@ -42,3 +43,11 @@ def test_hud_renders_armed_live_state():
     hud.render(image)
     assert image.pixelColor(110, 40).alpha() > 0
     assert image.pixelColor(640, 40).alpha() > 0
+
+
+def test_main_window_has_application_quit_shortcut():
+    _app()
+    window = MainWindow()
+
+    assert window.quit_shortcut.key().toString() == "Ctrl+Shift+Q"
+    window.close()

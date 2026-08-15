@@ -1,4 +1,5 @@
 import os
+import threading
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -51,4 +52,39 @@ def test_widget_reports_latency_and_hides_marker():
 
     assert measured == [83]
     assert image.pixelColor(2, image.height() - 2) == background
+    widget.close()
+
+
+def test_portable_worker_is_joined_before_reconnect():
+    _app()
+    widget = VideoWidget()
+    stop_event = threading.Event()
+    stopped = threading.Event()
+
+    def worker():
+        stop_event.wait(1.0)
+        stopped.set()
+
+    thread = threading.Thread(target=worker)
+    thread.start()
+    widget._av_stop = stop_event
+    widget._av_thread = thread
+    generation = widget._video_generation
+
+    assert widget._stop_pipeline() is True
+    assert stopped.is_set()
+    assert not thread.is_alive()
+    assert widget._video_generation == generation + 1
+    widget.close()
+
+
+def test_stale_portable_frame_is_ignored_after_camera_switch():
+    _app()
+    widget = VideoWidget()
+    image = QImage(640, 480, QImage.Format.Format_RGB888)
+    widget._video_generation = 4
+
+    widget._on_pyav_frame(3, image)
+
+    assert widget._frame is None
     widget.close()

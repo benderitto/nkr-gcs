@@ -29,7 +29,7 @@ except ImportError:
 from .video_config import CAMERA_STREAMS, build_stream_url, retry_delay, stream_changed
 from .latency_marker import (
     BLOCK_WIDTH, DATA_WIDTH, MARKER_HEIGHT, MARKER_WIDTH,
-    calculate_video_latency_ms,
+    calculate_video_latency_ms, measure_video_latency_ms,
 )
 
 logger = logging.getLogger(__name__)
@@ -47,7 +47,8 @@ class VideoWidget(QWidget):
     """Render the newest decoded frame without a browser or queued old frames."""
 
     frame_ready = Signal(QImage)
-    backend_failed = Signal(str)
+    pyav_frame_ready = Signal(int, QImage)
+    backend_failed = Signal(int, str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -58,17 +59,22 @@ class VideoWidget(QWidget):
         self._pipeline = None
         self._bus = None
         self._frame = None
-        self._av_container = None
-        self._av_stop = threading.Event()
+        self._av_stop = None
         self._av_thread = None
+        self._video_generation = 0
+        self._shutting_down = False
         self._retry_attempt = 0
         self._popup = None
         self._state_listener = None
         self._latency_listener = None
         self._synchronized_now_ms = lambda: None
         self._latency_samples = deque(maxlen=5)
+        self._invalid_latency_frames = 0
+        self._last_latency_warning = 0.0
         self._last_popup = {}
         self.frame_ready.connect(self._on_frame, Qt.ConnectionType.QueuedConnection)
+        self.pyav_frame_ready.connect(
+            self._on_pyav_frame, Qt.ConnectionType.QueuedConnection)
         self.backend_failed.connect(
             self._on_backend_failed, Qt.ConnectionType.QueuedConnection)
         self._retry_timer = QTimer(self)
@@ -103,6 +109,8 @@ class VideoWidget(QWidget):
         self._synchronized_now_ms = now_ms
 
     def set_stream(self, stream: str) -> None:
+        if self._shutting_down:
+            return
         if not stream_changed(self.stream, stream):
             return
         self.stream = stream
@@ -112,14 +120,21 @@ class VideoWidget(QWidget):
             self._connect_current_stream()
 
     def reconnect(self) -> None:
-        if self.settings is None or not self.settings.video_enabled or self.stream is None:
+        if (self._shutting_down or self.settings is None
+                or not self.settings.video_enabled or self.stream is None):
             return
         self._connect_current_stream(reconnecting=True)
 
-    def close(self) -> bool:
+    def shutdown(self) -> None:
+        if self._shutting_down:
+            return
+        self._shutting_down = True
         self._retry_timer.stop()
         self._stop_pipeline()
-        return super().close()
+
+    def closeEvent(self, event) -> None:
+        self.shutdown()
+        super().closeEvent(event)
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
@@ -151,11 +166,16 @@ class VideoWidget(QWidget):
         )
 
     def _connect_current_stream(self, reconnecting=False) -> None:
+        if self._shutting_down:
+            return
         if Gst is None and av is None:
             logger.error("Neither GStreamer nor PyAV is available")
             self._set_lost()
             return
-        self._stop_pipeline()
+        if not self._stop_pipeline():
+            logger.error("Previous portable video worker did not stop in time")
+            self._set_lost()
+            return
         url = build_stream_url(
             self.settings.video_host, self.settings.video_port, self.stream)
         self._set_state(
@@ -193,13 +213,22 @@ class VideoWidget(QWidget):
             getattr(av, "__version__", "unknown"),
             getattr(av, "library_versions", "unknown"),
         )
-        self._av_stop.clear()
+        stop_event = threading.Event()
+        generation = self._video_generation
+        self._av_stop = stop_event
         self._av_thread = threading.Thread(
-            target=self._run_pyav, args=(url,), name="nkr-video", daemon=True)
+            target=self._run_pyav,
+            args=(url, stop_event, generation),
+            name=f"nkr-video-{generation}",
+            daemon=True,
+        )
         self._av_thread.start()
         logger.info("Portable low-latency video connecting to %s", url)
 
-    def _run_pyav(self, url: str) -> None:
+    def _run_pyav(
+        self, url: str, stop_event: threading.Event, generation: int,
+    ) -> None:
+        container = None
         try:
             container = av.open(
                 url,
@@ -210,11 +239,14 @@ class VideoWidget(QWidget):
                     "probesize": "32",
                     "analyzeduration": "0",
                     "stimeout": "3000000",
+                    "rw_timeout": "1000000",
                 },
+                timeout=(3.0, 1.0),
             )
-            self._av_container = container
+            if stop_event.is_set():
+                return
             for frame in container.decode(video=0):
-                if self._av_stop.is_set():
+                if stop_event.is_set():
                     break
                 rgb = frame.reformat(format="rgb24")
                 plane = rgb.planes[0]
@@ -222,22 +254,29 @@ class VideoWidget(QWidget):
                     bytes(plane), rgb.width, rgb.height, plane.line_size,
                     QImage.Format.Format_RGB888,
                 ).copy()
-                self.frame_ready.emit(image)
-            if not self._av_stop.is_set():
-                self.backend_failed.emit("Portable video stream ended")
+                self.pyav_frame_ready.emit(generation, image)
+            if not stop_event.is_set():
+                self.backend_failed.emit(
+                    generation, "Portable video stream ended")
         except Exception as exc:
-            if not self._av_stop.is_set():
+            if not stop_event.is_set():
                 logger.exception("Portable video backend failed for %s", url)
                 self.backend_failed.emit(
+                    generation,
                     f"Portable video error: {type(exc).__name__}: {exc}",
                 )
         finally:
-            container = self._av_container
-            self._av_container = None
             if container is not None:
                 container.close()
 
-    def _on_backend_failed(self, message: str) -> None:
+    def _on_pyav_frame(self, generation: int, image: QImage) -> None:
+        if generation != self._video_generation or self._shutting_down:
+            return
+        self._on_frame(image)
+
+    def _on_backend_failed(self, generation: int, message: str) -> None:
+        if generation != self._video_generation or self._shutting_down:
+            return
         logger.warning("%s", message)
         self._stop_pipeline()
         self._set_lost()
@@ -292,11 +331,25 @@ class VideoWidget(QWidget):
                         (color.red() + color.green() + color.blue()) / 3,
                     )
             levels.append(sum(values) / len(values))
-        latency = calculate_video_latency_ms(
-            levels, self._synchronized_now_ms(),
-        )
+        synchronized_now_ms = self._synchronized_now_ms()
+        latency = calculate_video_latency_ms(levels, synchronized_now_ms)
         if latency is None:
+            self._invalid_latency_frames += 1
+            if self._invalid_latency_frames >= 15:
+                self._latency_samples.clear()
+                if self._latency_listener is not None:
+                    self._latency_listener(None)
+            raw_latency = measure_video_latency_ms(levels, synchronized_now_ms)
+            now = time.monotonic()
+            if (raw_latency is not None
+                    and now - self._last_latency_warning >= 5.0):
+                logger.warning(
+                    "Rejected video timestamp: signed latency=%d ms",
+                    raw_latency,
+                )
+                self._last_latency_warning = now
             return
+        self._invalid_latency_frames = 0
         self._latency_samples.append(latency)
         displayed = round(statistics.median(self._latency_samples))
         if self._latency_listener is not None:
@@ -330,24 +383,36 @@ class VideoWidget(QWidget):
         self._stop_pipeline()
         self._set_lost()
 
-    def _stop_pipeline(self) -> None:
+    def _stop_pipeline(self) -> bool:
+        # Invalidate queued frames/errors before stopping native backends.
+        self._video_generation += 1
         self._bus_timer.stop()
-        self._av_stop.set()
-        container, self._av_container = self._av_container, None
-        if container is not None:
-            container.close()
+        stop_event = self._av_stop
+        worker = self._av_thread
+        if stop_event is not None:
+            stop_event.set()
+        worker_stopped = True
+        if worker is not None and worker is not threading.current_thread():
+            worker.join(timeout=4.0)
+            worker_stopped = not worker.is_alive()
+        if worker_stopped:
+            self._av_stop = None
+            self._av_thread = None
         pipeline, self._pipeline = self._pipeline, None
         self._bus = None
         if pipeline is not None and Gst is not None:
             pipeline.set_state(Gst.State.NULL)
         self._latency_samples.clear()
+        self._invalid_latency_frames = 0
         if self._latency_listener is not None:
             self._latency_listener(None)
+        return worker_stopped
 
     def _set_lost(self) -> None:
         self._set_state(VideoState.VIDEO_LOST)
         self._show_popup(f"VIDEO LOST: {self._camera_name()}")
-        if self.settings is not None and self.settings.video_enabled:
+        if (not self._shutting_down and self.settings is not None
+                and self.settings.video_enabled):
             delay = retry_delay(self._retry_attempt)
             self._retry_attempt += 1
             self._retry_timer.start(delay * 1000)

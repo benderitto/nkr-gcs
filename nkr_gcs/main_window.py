@@ -3,6 +3,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QKeySequence, QShortcut
+from PySide6.QtWidgets import QApplication
 
 from .video.video_widget import VideoWidget
 from .hud.hud_widget import HUDWidget
@@ -21,6 +23,10 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("NKR Ground Control Station")
 
         self.resize(1280, 800)
+
+        self.quit_shortcut = QShortcut(QKeySequence("Ctrl+Shift+Q"), self)
+        self.quit_shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
+        self.quit_shortcut.activated.connect(QApplication.instance().quit)
 
         #
         # Shared application state.
@@ -79,8 +85,7 @@ class MainWindow(QMainWindow):
         self.osd_menu.setGeometry(rect)
 
     def closeEvent(self, event):
-        # Stop pending WebRTC reconnects even if this is not the final Qt window.
-        self.video.close()
+        self.video.shutdown()
         super().closeEvent(event)
 
     def enter_kiosk_mode(self):

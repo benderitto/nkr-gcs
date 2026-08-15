@@ -21,6 +21,7 @@ class SDLDriver:
 
         self.controller = None
         self.connected = False
+        self._initialized = False
         self._debug_button_state = None
 
     def initialize(self):
@@ -31,6 +32,7 @@ class SDLDriver:
             raise RuntimeError(
                 "SDL initialization failed"
             )
+        self._initialized = True
 
         #
         # Find first controller
@@ -51,6 +53,16 @@ class SDLDriver:
 
                 self.connected = True
                 return
+
+    def close(self):
+        """Release SDL native handles before the bundled DLL is unloaded."""
+        if self.controller is not None:
+            sdl2.SDL_GameControllerClose(self.controller)
+            self.controller = None
+        self.connected = False
+        if self._initialized:
+            sdl2.SDL_QuitSubSystem(sdl2.SDL_INIT_GAMECONTROLLER)
+            self._initialized = False
 
     def update(
         self,

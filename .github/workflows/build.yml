@@ -67,6 +67,7 @@ jobs:
           }
           $log = Join-Path $env:APPDATA "NKR-GCS\nkr-gcs.log"
           Remove-Item $log -ErrorAction SilentlyContinue
+          $env:NKR_GCS_SMOKE_EXIT_MS = "5000"
           $process = Start-Process ".\dist\nkr-gcs\nkr-gcs.exe" -PassThru
           try {
             $content = ""
@@ -94,6 +95,14 @@ jobs:
             }
             if ($content -notmatch "hello sent; waiting for challenge") {
               Stop-SmokeTest "Packaged GCS did not start UDP negotiation" $content
+            }
+            if (-not $process.WaitForExit(15000)) {
+              Stop-SmokeTest "Packaged GCS did not shut down cleanly" $content
+            }
+            if ($process.ExitCode -ne 0) {
+              Stop-SmokeTest `
+                "Packaged GCS exited with code $($process.ExitCode)" `
+                $content
             }
           }
           finally {

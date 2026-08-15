@@ -22,6 +22,7 @@ class Application(QObject):
         super().__init__()
 
         self.window = window
+        self._closed = False
         self.settings = load_settings()
         logger.info(
             "Configuration loaded: robot=%s:%d video=%s:%d/%s input=%s",
@@ -131,10 +132,16 @@ class Application(QObject):
             return False
 
     def close(self):
+        if self._closed:
+            return
+        self._closed = True
+        logger.info("NKR GCS shutting down")
         self.timer.stop()
+        self.window.video.shutdown()
+        self.input.close()
         self.network.close()
         self.time_sync.stop()
-        self.window.video.close()
+        logger.info("NKR GCS shutdown complete")
 
     def _select_drive_mode(self, mode: int):
         self.input.select_drive_mode(mode)

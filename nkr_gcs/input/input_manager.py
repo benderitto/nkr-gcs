@@ -60,6 +60,9 @@ class InputManager:
     def select_input_device(self, input_device: str) -> None:
         self.mapping.set_input_device(input_device)
 
+    def close(self) -> None:
+        self.driver.close()
+
     def _is_neutral(self) -> bool:
         """Whether menu buttons were released.
 

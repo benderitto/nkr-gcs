@@ -12,7 +12,6 @@ MARKER_WIDTH = (len(PREAMBLE) + TIMESTAMP_BITS) * BLOCK_WIDTH
 TIMESTAMP_QUANTUM_MS = 10
 MIN_CONTRAST = 80.0
 MAX_VALID_LATENCY_MS = 10_000
-MAX_FUTURE_SKEW_MS = 1_000
 
 
 def decode_timestamp_ticks(levels: Sequence[float]) -> int | None:
@@ -49,11 +48,11 @@ def decode_timestamp_ticks(levels: Sequence[float]) -> int | None:
     return binary
 
 
-def calculate_video_latency_ms(
+def measure_video_latency_ms(
     levels: Sequence[float],
     synchronized_now_ms: int | None,
 ) -> int | None:
-    """Return capture-to-display delay, rejecting stale or unsynchronized data."""
+    """Return the signed clock delta for diagnostics and validation."""
     if synchronized_now_ms is None:
         return None
     captured_ticks = decode_timestamp_ticks(levels)
@@ -71,7 +70,15 @@ def calculate_video_latency_ms(
         candidates, key=lambda candidate: abs(now_ticks - candidate),
     )
     captured_ms = reconstructed_ticks * TIMESTAMP_QUANTUM_MS
-    latency = synchronized_now_ms - captured_ms
-    if latency < -MAX_FUTURE_SKEW_MS or latency > MAX_VALID_LATENCY_MS:
+    return synchronized_now_ms - captured_ms
+
+
+def calculate_video_latency_ms(
+    levels: Sequence[float],
+    synchronized_now_ms: int | None,
+) -> int | None:
+    """Return capture-to-display delay, rejecting impossible timestamps."""
+    latency = measure_video_latency_ms(levels, synchronized_now_ms)
+    if latency is None or latency <= 0 or latency > MAX_VALID_LATENCY_MS:
         return None
-    return max(0, latency)
+    return latency

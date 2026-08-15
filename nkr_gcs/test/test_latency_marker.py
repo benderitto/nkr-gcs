@@ -3,6 +3,7 @@ from nkr_gcs.video.latency_marker import (
     TIMESTAMP_BITS,
     calculate_video_latency_ms,
     decode_timestamp_ticks,
+    measure_video_latency_ms,
 )
 
 
@@ -44,3 +45,11 @@ def test_rejects_missing_marker_and_implausible_delay():
     assert calculate_video_latency_ms(
         _levels_for_timestamp(captured_ms), None,
     ) is None
+
+
+def test_rejects_future_frame_instead_of_reporting_zero():
+    captured_ms = 1_786_820_123_450
+    levels = _levels_for_timestamp(captured_ms)
+
+    assert measure_video_latency_ms(levels, captured_ms - 100) == -100
+    assert calculate_video_latency_ms(levels, captured_ms - 100) is None
