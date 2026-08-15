@@ -44,12 +44,31 @@ jobs:
       - name: Smoke-test Windows executable
         shell: pwsh
         run: |
+          $log = Join-Path $env:APPDATA "NKR-GCS\nkr-gcs.log"
+          Remove-Item $log -ErrorAction SilentlyContinue
           $process = Start-Process ".\dist\nkr-gcs\nkr-gcs.exe" -PassThru
-          Start-Sleep -Seconds 8
-          if ($process.HasExited) {
-            throw "nkr-gcs.exe exited during startup with code $($process.ExitCode)"
+          try {
+            Start-Sleep -Seconds 8
+            if ($process.HasExited) {
+              throw "nkr-gcs.exe exited during startup with code $($process.ExitCode)"
+            }
+            if (-not (Test-Path $log)) {
+              throw "Packaged GCS did not create its diagnostic log"
+            }
+            $content = Get-Content $log -Raw
+            Write-Host $content
+            if ($content -notmatch "Main update loop started") {
+              throw "Packaged GCS did not enter its Qt update loop"
+            }
+            if ($content -notmatch "hello sent; waiting for challenge") {
+              throw "Packaged GCS did not start UDP negotiation"
+            }
           }
-          Stop-Process -Id $process.Id -Force
+          finally {
+            if (-not $process.HasExited) {
+              Stop-Process -Id $process.Id -Force
+            }
+          }
       - uses: actions/upload-artifact@v4
         with:
           name: nkr-gcs-windows-x64

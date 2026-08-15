@@ -1,4 +1,8 @@
 import socket
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 
 class UDPClient:
@@ -12,6 +16,7 @@ class UDPClient:
         self.address = (host, port)
 
         self.sock = self._new_socket()
+        logger.info("UDP control target configured: %s:%d", host, port)
 
     @staticmethod
     def _new_socket():

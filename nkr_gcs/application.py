@@ -1,5 +1,6 @@
 from PySide6.QtCore import QObject, QTimer
 import logging
+import time
 
 from .model.operator_model import OperatorModel
 from .input.input_manager import InputManager
@@ -21,6 +22,12 @@ class Application(QObject):
 
         self.window = window
         self.settings = load_settings()
+        logger.info(
+            "Configuration loaded: robot=%s:%d video=%s:%d/%s input=%s",
+            self.settings.robot_host, self.settings.robot_port,
+            self.settings.video_host, self.settings.video_port,
+            self.settings.video_default_stream, self.settings.input_device,
+        )
 
         self.operator = OperatorModel()
 
@@ -49,36 +56,72 @@ class Application(QObject):
         #
 
         self.timer = QTimer()
+        self._last_stage_error = {}
+        self._first_update = True
 
         self.timer.timeout.connect(self.update)
 
         self.timer.start(10)  # GUI cadence; network itself sends at 50 Hz.
 
     def update(self):
+        if self._first_update:
+            logger.info("Main update loop started")
+            self._first_update = False
 
-        #
-        # Read controller
-        #
-
-        self.input.read_controller()
-        self.presentation.update(self.input.controller)
-        self.osd_menu.update(self.input.controller)
-
-        if self.window.osd_menu.is_open:
+        input_ok = self._run_stage("controller input", self.input.read_controller)
+        if not input_ok:
+            # Never keep an old actuator command after an input failure.
             self.input.suppress_operator(self.operator)
-        else:
-            self.input.map_operator(self.operator)
-            self.camera.update(self.input.controller)
 
-        if self.network.update(self.operator):
+        self._run_stage(
+            "local presentation",
+            lambda: self.presentation.update(self.input.controller),
+        )
+        self._run_stage(
+            "OSD menu",
+            lambda: self.osd_menu.update(self.input.controller),
+        )
+
+        if input_ok:
+            if self.window.osd_menu.is_open:
+                self.input.suppress_operator(self.operator)
+            else:
+                if self._run_stage(
+                    "operator mapping",
+                    lambda: self.input.map_operator(self.operator),
+                ):
+                    self._run_stage(
+                        "camera controls",
+                        lambda: self.camera.update(self.input.controller),
+                    )
+
+        robot_updated = [False]
+        self._run_stage(
+            "UDP network",
+            lambda: robot_updated.__setitem__(
+                0, self.network.update(self.operator),
+            ),
+        )
+        if robot_updated[0]:
             # Runs from the Qt timer, so popup work remains on the GUI thread.
-            self.robot_notifier.update(self.window.robot)
+            self._run_stage(
+                "robot state notification",
+                lambda: self.robot_notifier.update(self.window.robot),
+            )
 
-        #
-        # Update GUI
-        #
+        self._run_stage("GUI refresh", lambda: self.window.refresh(self.operator))
 
-        self.window.refresh(self.operator)
+    def _run_stage(self, name, callback) -> bool:
+        """Keep independent control stages alive and persist their tracebacks."""
+        try:
+            callback()
+            return True
+        except Exception:
+            now = time.monotonic()
+            if now - self._last_stage_error.get(name, float("-inf")) >= 5.0:
+                logger.exception("Main-loop stage failed: %s", name)
+                self._last_stage_error[name] = now
+            return False
 
     def close(self):
         self.timer.stop()

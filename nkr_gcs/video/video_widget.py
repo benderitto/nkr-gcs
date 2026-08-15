@@ -173,6 +173,11 @@ class VideoWidget(QWidget):
 
     def _start_pyav(self, url: str) -> None:
         """Start the portable FFmpeg backend used on Windows."""
+        logger.info(
+            "PyAV backend version=%s libraries=%s",
+            getattr(av, "__version__", "unknown"),
+            getattr(av, "library_versions", "unknown"),
+        )
         self._av_stop.clear()
         self._av_thread = threading.Thread(
             target=self._run_pyav, args=(url,), name="nkr-video", daemon=True)
@@ -207,7 +212,10 @@ class VideoWidget(QWidget):
                 self.backend_failed.emit("Portable video stream ended")
         except Exception as exc:
             if not self._av_stop.is_set():
-                self.backend_failed.emit(f"Portable video error: {exc}")
+                logger.exception("Portable video backend failed for %s", url)
+                self.backend_failed.emit(
+                    f"Portable video error: {type(exc).__name__}: {exc}",
+                )
         finally:
             container = self._av_container
             self._av_container = None
