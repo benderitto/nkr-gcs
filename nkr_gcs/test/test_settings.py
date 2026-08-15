@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import nkr_gcs.settings as settings_module
 from nkr_gcs.settings import Settings, load_settings, save_setting, settings_path
 
 
@@ -12,9 +13,17 @@ def test_missing_settings_are_created(tmp_path):
 
 
 def test_linux_settings_path_uses_xdg(monkeypatch, tmp_path):
+    monkeypatch.setattr(settings_module.sys, "platform", "linux")
     monkeypatch.delenv("NKR_GCS_CONFIG", raising=False)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     assert settings_path() == Path(tmp_path) / "nkr-gcs" / "settings.yaml"
+
+
+def test_windows_settings_path_uses_appdata(monkeypatch, tmp_path):
+    monkeypatch.setattr(settings_module.sys, "platform", "win32")
+    monkeypatch.delenv("NKR_GCS_CONFIG", raising=False)
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    assert settings_path() == Path(tmp_path) / "NKR-GCS" / "settings.yaml"
 
 
 def test_settings_path_can_be_overridden(monkeypatch, tmp_path):
