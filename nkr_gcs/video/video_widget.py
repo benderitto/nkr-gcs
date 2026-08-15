@@ -1,11 +1,13 @@
 """Low-latency native GStreamer video display for the operator GCS."""
 
+from collections import deque
 from enum import Enum
 import logging
+import statistics
 import threading
 import time
 
-from PySide6.QtCore import QTimer, Qt, Signal
+from PySide6.QtCore import QRect, QTimer, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QImage, QPainter
 from PySide6.QtWidgets import QWidget
 
@@ -25,6 +27,10 @@ except ImportError:
     av = None
 
 from .video_config import CAMERA_STREAMS, build_stream_url, retry_delay, stream_changed
+from .latency_marker import (
+    BLOCK_WIDTH, DATA_WIDTH, MARKER_HEIGHT, MARKER_WIDTH,
+    calculate_video_latency_ms,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +64,9 @@ class VideoWidget(QWidget):
         self._retry_attempt = 0
         self._popup = None
         self._state_listener = None
+        self._latency_listener = None
+        self._synchronized_now_ms = lambda: None
+        self._latency_samples = deque(maxlen=5)
         self._last_popup = {}
         self.frame_ready.connect(self._on_frame, Qt.ConnectionType.QueuedConnection)
         self.backend_failed.connect(
@@ -86,6 +95,12 @@ class VideoWidget(QWidget):
 
     def set_state_listener(self, listener) -> None:
         self._state_listener = listener
+
+    def set_latency_listener(self, listener) -> None:
+        self._latency_listener = listener
+
+    def set_synchronized_time_source(self, now_ms) -> None:
+        self._synchronized_now_ms = now_ms
 
     def set_stream(self, stream: str) -> None:
         if not stream_changed(self.stream, stream):
@@ -249,12 +264,57 @@ class VideoWidget(QWidget):
         return Gst.FlowReturn.OK
 
     def _on_frame(self, image: QImage) -> None:
+        self._update_latency(image)
+        self._hide_latency_marker(image)
         self._frame = image
         if self.state is not VideoState.LIVE:
             self._retry_attempt = 0
             self._set_state(VideoState.LIVE)
             self._show_popup(f"VIDEO CONNECTED: {self._camera_name()}")
         self.update()
+
+    def _update_latency(self, image: QImage) -> None:
+        if image.width() < MARKER_WIDTH or image.height() < MARKER_HEIGHT:
+            return
+        levels = []
+        sample_y = (
+            image.height() - MARKER_HEIGHT + 1,
+            image.height() - MARKER_HEIGHT // 2,
+            image.height() - 2,
+        )
+        for block in range(MARKER_WIDTH // BLOCK_WIDTH):
+            start_x = block * BLOCK_WIDTH
+            values = []
+            for x in range(start_x, start_x + DATA_WIDTH):
+                for y in sample_y:
+                    color = image.pixelColor(x, y)
+                    values.append(
+                        (color.red() + color.green() + color.blue()) / 3,
+                    )
+            levels.append(sum(values) / len(values))
+        latency = calculate_video_latency_ms(
+            levels, self._synchronized_now_ms(),
+        )
+        if latency is None:
+            return
+        self._latency_samples.append(latency)
+        displayed = round(statistics.median(self._latency_samples))
+        if self._latency_listener is not None:
+            self._latency_listener(displayed)
+
+    @staticmethod
+    def _hide_latency_marker(image: QImage) -> None:
+        if image.width() < MARKER_WIDTH or image.height() <= MARKER_HEIGHT:
+            return
+        replacement = image.copy(
+            0, image.height() - MARKER_HEIGHT - 1, MARKER_WIDTH, 1,
+        )
+        painter = QPainter(image)
+        painter.drawImage(
+            QRect(0, image.height() - MARKER_HEIGHT, MARKER_WIDTH, MARKER_HEIGHT),
+            replacement,
+        )
+        painter.end()
 
     def _poll_bus(self) -> None:
         if self._bus is None:
@@ -280,6 +340,9 @@ class VideoWidget(QWidget):
         self._bus = None
         if pipeline is not None and Gst is not None:
             pipeline.set_state(Gst.State.NULL)
+        self._latency_samples.clear()
+        if self._latency_listener is not None:
+            self._latency_listener(None)
 
     def _set_lost(self) -> None:
         self._set_state(VideoState.VIDEO_LOST)

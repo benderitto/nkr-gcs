@@ -68,4 +68,4 @@ class RobotModel:
 
     packet_quality: int = 100
 
-    latency_ms: int = 0
+    latency_ms: int | None = None

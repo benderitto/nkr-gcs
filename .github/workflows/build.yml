@@ -41,6 +41,13 @@ jobs:
           cache: pip
       - shell: pwsh
         run: ./packaging/windows/build.ps1
+      - name: Run test suite
+        shell: pwsh
+        run: |
+          python -m pip install -r requirements-dev.txt
+          $env:PYTHONPATH = (Resolve-Path ".\nkr_protocol").Path
+          $env:QT_QPA_PLATFORM = "offscreen"
+          python -m pytest -q
       - name: Smoke-test Windows executable
         shell: pwsh
         run: |

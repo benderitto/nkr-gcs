@@ -10,6 +10,7 @@ from .video.camera_controller import CameraController
 from .settings import load_settings, save_setting
 from .presentation_controller import PresentationController
 from .osd_menu_controller import OSDMenuController
+from .time_sync import NetworkTimeSynchronizer
 
 logger = logging.getLogger(__name__)
 
@@ -33,11 +34,17 @@ class Application(QObject):
 
         self.input = InputManager(input_device=self.settings.input_device)
         self.network = NetworkManager(settings=self.settings, robot=self.window.robot)
+        self.time_sync = NetworkTimeSynchronizer()
+        self.time_sync.start()
         self.robot_notifier = RobotStateNotifier(self.window.popup, self.window.robot)
         self.window.video.set_popup(self.window.popup)
         self.window.video.set_state_listener(
             lambda state: setattr(self.window.robot, "video_state", state.value),
         )
+        self.window.video.set_latency_listener(
+            lambda latency: setattr(self.window.robot, "latency_ms", latency),
+        )
+        self.window.video.set_synchronized_time_source(self.time_sync.now_ms)
         self.window.video.configure(self.settings)
         self.camera = CameraController(
             self.window.video, self.window.popup, self.window.robot,
@@ -126,6 +133,7 @@ class Application(QObject):
     def close(self):
         self.timer.stop()
         self.network.close()
+        self.time_sync.stop()
         self.window.video.close()
 
     def _select_drive_mode(self, mode: int):

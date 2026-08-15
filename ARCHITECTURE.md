@@ -85,7 +85,8 @@ Examples:
 - bitrate
 - latency
 
-RobotModel is updated ONLY from incoming network packets.
+RobotModel is updated from authenticated robot-state packets and local
+measurements derived from the active video frame, such as video latency.
 
 RobotModel never sends commands.
 
@@ -214,11 +215,14 @@ MainWindow contains:
 
 # VideoWidget
 
-Responsible only for displaying video.
+Responsible for decoding and displaying video, extracting the embedded capture
+timestamp, and reporting capture-to-display latency.
 
-No telemetry.
+The marker is removed before the frame is painted. UTC correction comes from a
+background SNTP synchronizer; unavailable or stale synchronization yields no
+latency value.
 
-No networking.
+No robot-control networking.
 
 No input handling.
 

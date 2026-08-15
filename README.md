@@ -28,6 +28,13 @@ Video uses native low-latency RTSP rather than a browser. Linux uses GStreamer;
 Windows uses the bundled PyAV/FFmpeg backend. The receive queue keeps only the
 newest frame.
 
+The HUD `LATENCY` value is the measured capture-to-display delay of the current
+video frame. The robot embeds a hidden Gray-coded UTC timestamp in the bottom
+eight pixels of every frame; GCS decodes and removes it before display. GCS
+queries multiple public SNTP servers, uses the lowest-RTT clock correction, and
+refreshes it every five minutes. Until UTC and a valid frame marker are
+available, the HUD shows `—` instead of a fabricated value.
+
 GCS starts in kiosk presentation mode: fullscreen, frameless, and above normal
 desktop windows. Press the Steam Deck View (`□ □`) button once to release the
 window to normal desktop mode; release it and press once more to return to

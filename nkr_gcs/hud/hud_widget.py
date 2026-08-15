@@ -79,7 +79,11 @@ class HUDWidget(QWidget):
         stats = (
             ("SPEED", f"{self.state.speed:.1f} km/h"),
             ("LINK", f"{self.state.bitrate_mbps:.1f} Mbit/s"),
-            ("LATENCY", f"{self.state.latency_ms} ms"),
+            (
+                "LATENCY",
+                "—" if self.state.latency_ms is None
+                else f"{self.state.latency_ms} ms",
+            ),
         )
         total_width = 3 * 146
         x = (self.width() - total_width) / 2
