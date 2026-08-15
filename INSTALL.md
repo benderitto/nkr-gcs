@@ -11,7 +11,8 @@ Flatpak is isolated from SteamOS system packages, so an operating-system update
 does not remove the application's Python, PySide6, SDL2, GStreamer, or H.264
 decoder dependencies.
 
-1. Download `nkr-gcs.flatpak` from the latest GitHub Actions build or release.
+1. Download `nkr-gcs-linux-x86_64.flatpak` from the
+   [latest GitHub Release](https://github.com/benderitto/nkr-gcs/releases/latest).
 2. In Desktop Mode, install it for the current user:
 
    ```bash
@@ -64,7 +65,8 @@ NKR_GCS_CONFIG="$PWD/config/settings.yaml" nkr-gcs
 
 1. Install Tailscale and sign in to the robot's tailnet.
 2. Connect an Xbox or DualSense controller before starting GCS.
-3. Download and extract the `nkr-gcs-windows-x64` GitHub artifact/release.
+3. Download and extract `nkr-gcs-windows-x64.zip` from the
+   [latest GitHub Release](https://github.com/benderitto/nkr-gcs/releases/latest).
 4. Start `nkr-gcs.exe` from the extracted directory.
 
 The Windows package contains Python, Qt, SDL2, and FFmpeg/PyAV. It does not
