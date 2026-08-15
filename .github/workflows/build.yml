@@ -47,7 +47,15 @@ jobs:
           python -m pip install -r requirements-dev.txt
           $env:PYTHONPATH = (Resolve-Path ".\nkr_protocol").Path
           $env:QT_QPA_PLATFORM = "offscreen"
-          python -m pytest -q
+          $output = python -m pytest -q 2>&1
+          $exitCode = $LASTEXITCODE
+          $text = $output -join "`n"
+          Write-Host $text
+          if ($exitCode -ne 0) {
+            $annotation = $text.Replace("%", "%25").Replace("`r", "").Replace("`n", "%0A")
+            Write-Host "::error title=NKR GCS Windows tests::$annotation"
+            throw "GCS test suite failed with exit code $exitCode"
+          }
       - name: Smoke-test Windows executable
         shell: pwsh
         run: |
