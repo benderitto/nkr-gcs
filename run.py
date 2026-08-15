@@ -15,6 +15,9 @@ if str(_PROTOCOL_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROTOCOL_ROOT))
 
 FLATPAK_APP_ID = "ua.nkr.GCS"
+GRAPHICAL_ENVIRONMENT = (
+    "DISPLAY", "WAYLAND_DISPLAY", "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS",
+)
 
 
 def _host_dependencies_available() -> bool:
@@ -33,9 +36,29 @@ def _flatpak_is_installed() -> bool:
     return result.returncode == 0
 
 
+def _inherit_graphical_session_environment() -> None:
+    """Allow an SSH invocation to open the app in the logged-in Deck session."""
+    if os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"):
+        return
+    result = subprocess.run(
+        ["systemctl", "--user", "show-environment"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return
+    allowed = set(GRAPHICAL_ENVIRONMENT)
+    for line in result.stdout.splitlines():
+        key, separator, value = line.partition("=")
+        if separator and key in allowed:
+            os.environ[key] = value
+
+
 def main() -> None:
     if not _host_dependencies_available() and _flatpak_is_installed():
         print("System Python has no GCS UI dependencies; launching the Flatpak.")
+        _inherit_graphical_session_environment()
         os.execvp("flatpak", ["flatpak", "run", FLATPAK_APP_ID])
 
     try:
