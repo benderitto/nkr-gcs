@@ -38,6 +38,7 @@ class ControllerState:
 
     l1: bool = False
     r1: bool = False
+    r4: bool = False
 
     #
     # Stick buttons
@@ -53,6 +54,9 @@ class ControllerState:
     back: bool = False
     start: bool = False
     guide: bool = False
+    # SDL MISC1 is the Steam Deck Quick Access / "..." button on mappings
+    # where it is not exposed as the traditional BACK button.
+    misc1: bool = False
 
     #
     # D-Pad

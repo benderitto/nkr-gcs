@@ -1,0 +1,43 @@
+app-id: ua.nkr.GCS
+runtime: org.kde.Platform
+runtime-version: "6.10"
+sdk: org.kde.Sdk
+base: io.qt.PySide.BaseApp
+base-version: "6.10"
+command: nkr-gcs
+finish-args:
+  - --share=ipc
+  - --share=network
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=all
+modules:
+  - name: pycairo
+    buildsystem: meson
+    config-opts:
+      - -Dtests=false
+    sources:
+      - type: archive
+        url: https://github.com/pygobject/pycairo/releases/download/v1.29.0/pycairo-1.29.0.tar.gz
+
+  - name: pygobject
+    buildsystem: meson
+    config-opts:
+      - -Dtests=false
+    sources:
+      - type: archive
+        url: https://download.gnome.org/sources/pygobject/3.52/pygobject-3.52.3.tar.xz
+
+  - python3-requirements.json
+
+  - name: nkr-gcs
+    buildsystem: simple
+    build-commands:
+      - pip3 install --no-deps --no-build-isolation --prefix=/app .
+      - install -Dm644 packaging/linux/ua.nkr.GCS.desktop /app/share/applications/ua.nkr.GCS.desktop
+      - install -Dm644 packaging/linux/ua.nkr.GCS.metainfo.xml /app/share/metainfo/ua.nkr.GCS.metainfo.xml
+      - install -Dm644 packaging/linux/ua.nkr.GCS.svg /app/share/icons/hicolor/scalable/apps/ua.nkr.GCS.svg
+      - /app/cleanup-BaseApp.sh
+    sources:
+      - type: dir
+        path: .

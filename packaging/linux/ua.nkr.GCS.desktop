@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=NKR Ground Control Station
+Comment=Operate and monitor the NKR robot
+Exec=nkr-gcs
+Icon=ua.nkr.GCS
+Terminal=false
+Categories=Utility;RemoteAccess;
+StartupNotify=true

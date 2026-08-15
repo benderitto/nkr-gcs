@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nkr-gcs"
+version = "0.2.0"
+description = "Cross-platform ground control station for the NKR robot"
+requires-python = ">=3.11"
+dependencies = [
+  "PySide6==6.11.1",
+  "PySDL2==0.9.17",
+]
+
+[project.optional-dependencies]
+windows = [
+  "av>=14,<17",
+  "pysdl2-dll>=2.32,<3",
+]
+test = ["pytest>=8,<10"]
+
+[project.scripts]
+nkr-gcs = "nkr_gcs.app:main"
+
+[tool.setuptools]
+packages = [
+  "nkr_gcs",
+  "nkr_gcs.hud",
+  "nkr_gcs.input",
+  "nkr_gcs.model",
+  "nkr_gcs.network",
+  "nkr_gcs.video",
+  "nkr_protocol",
+]
+
+[tool.setuptools.package-dir]
+nkr_protocol = "nkr_protocol/nkr_protocol"
+
+[tool.pytest.ini_options]
+testpaths = ["nkr_gcs/test", "nkr_protocol/test"]

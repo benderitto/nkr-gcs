@@ -1,6 +1,9 @@
 import sdl2
+import logging
 
 from .controller import ControllerState
+
+logger = logging.getLogger(__name__)
 
 
 class SDLDriver:
@@ -9,6 +12,7 @@ class SDLDriver:
 
         self.controller = None
         self.connected = False
+        self._debug_button_state = None
 
     def initialize(self):
 
@@ -149,6 +153,15 @@ class SDLDriver:
             )
         )
 
+        # On this Steam Deck mapping, physical R4 is SDL Paddle 1. SDL2's
+        # Paddle 1 enum is 16; never fall back to a D-Pad enum value.
+        state.r4 = bool(
+            sdl2.SDL_GameControllerGetButton(
+                self.controller,
+                getattr(sdl2, "SDL_CONTROLLER_BUTTON_PADDLE1", 16),
+            )
+        )
+
         #
         # Stick buttons
         #
@@ -192,6 +205,15 @@ class SDLDriver:
             )
         )
 
+        # Steam Deck "..." may be reported as MISC1 rather than BACK,
+        # depending on the installed SDL controller mapping database.
+        state.misc1 = bool(
+            sdl2.SDL_GameControllerGetButton(
+                self.controller,
+                getattr(sdl2, "SDL_CONTROLLER_BUTTON_MISC1", 11),
+            )
+        )
+
         #
         # D-Pad
         #
@@ -223,3 +245,13 @@ class SDLDriver:
                 sdl2.SDL_CONTROLLER_BUTTON_DPAD_RIGHT,
             )
         )
+
+        self._log_menu_input_edges(state)
+
+    def _log_menu_input_edges(self, state: ControllerState):
+        """Temporary edge diagnostics for Steam Deck SDL button mapping."""
+        current = (state.y, state.r4, state.dpad_up, state.dpad_down)
+        if current != self._debug_button_state:
+            logger.info("SDL menu inputs: Y=%s R4=%s DPadUp=%s DPadDown=%s",
+                        *current)
+            self._debug_button_state = current

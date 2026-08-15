@@ -1,5 +1,15 @@
 from dataclasses import dataclass
 
+from nkr_protocol.constants import MODE_FRONT_STEER
+
+MODE_NAMES = {
+    1: "FRONT STEER",
+    2: "TANK",
+    3: "CRAB",
+    4: "FRONT DRIVE",
+    5: "REAR DRIVE",
+}
+
 
 @dataclass
 class RobotModel:
@@ -12,13 +22,17 @@ class RobotModel:
 
     heading: float = 0.0            # degrees
 
-    drive_mode: str = "FRONT_STEER"
+    drive_mode: str = "FRONT STEER"
+    active_mode: int = MODE_FRONT_STEER
+    armed: bool = False
+    estop: bool = False
 
     #
     # Cameras
     #
 
     camera: str = "MAIN"
+    video_state: str = "DISABLED"
 
     #
     # Lights

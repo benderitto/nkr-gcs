@@ -31,3 +31,11 @@ dist/
 
 # Environment
 .env
+
+# Local runtime data and release artifacts
+config/settings.yaml
+*.pre_*
+*.tar.gz
+*.flatpak
+*.AppImage
+Middle_Age-road.png

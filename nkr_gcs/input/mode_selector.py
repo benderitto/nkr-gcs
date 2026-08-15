@@ -2,7 +2,7 @@
 Drive mode selector.
 """
 
-from nkr_protocol.nkr_protocol.constants import (
+from nkr_protocol.constants import (
     MODE_FRONT_STEER,
     MODE_TANK,
     MODE_CRAB,
@@ -53,3 +53,8 @@ class ModeSelector:
         self.last_button = button_pressed
 
         return self.current_mode
+
+    def set_mode(self, mode: int) -> None:
+        if mode not in self.modes:
+            raise ValueError(f"Unsupported drive mode: {mode}")
+        self.index = self.modes.index(mode)

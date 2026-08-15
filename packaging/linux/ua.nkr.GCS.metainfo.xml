@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>ua.nkr.GCS</id>
+  <name>NKR Ground Control Station</name>
+  <summary>Operate and monitor the NKR robot</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>Proprietary</project_license>
+  <description>
+    <p>NKR GCS provides low-latency video, telemetry, and SDL2 game-controller input for the NKR robot.</p>
+  </description>
+  <launchable type="desktop-id">ua.nkr.GCS.desktop</launchable>
+  <provides><binary>nkr-gcs</binary></provides>
+  <releases><release version="0.2.0" date="2026-08-15"/></releases>
+</component>

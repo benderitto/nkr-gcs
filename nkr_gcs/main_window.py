@@ -2,16 +2,14 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QWidget,
 )
+from PySide6.QtCore import Qt
 
 from .video.video_widget import VideoWidget
 from .hud.hud_widget import HUDWidget
 from .hud.popup_widget import PopupWidget
+from .hud.osd_menu import OSDMenu
 
 from .model.robot_model import RobotModel
-from .model.operator_model import OperatorModel
-from .input.input_manager import InputManager
-from PySide6.QtCore import QTimer
-from .network.network_manager import NetworkManager
 
 
 class MainWindow(QMainWindow):
@@ -30,18 +28,6 @@ class MainWindow(QMainWindow):
 
         self.robot = RobotModel()
         
-        self.operator = OperatorModel()
-        
-        self.input = InputManager()
-        
-        self.network = NetworkManager()
-        
-        self.timer = QTimer(self)
-
-        self.timer.timeout.connect(self.update)
-
-        self.timer.start(10)
-
         #
         # Central container.
         #
@@ -67,12 +53,13 @@ class MainWindow(QMainWindow):
         #
 
         self.popup = PopupWidget(container)
+        self.osd_menu = OSDMenu(container)
 
         #
         # Передаємо HUD доступ до стану.
         #
 
-        self.hud.robot = self.robot
+        self.hud.state = self.robot
         
         self.popup.show_message(
         "NKR READY"
@@ -89,23 +76,27 @@ class MainWindow(QMainWindow):
         self.hud.setGeometry(rect)
         
         self.popup.setGeometry(rect)
-    
-    def update(self):
+        self.osd_menu.setGeometry(rect)
 
-        #
-        # Read operator input
-        #
+    def closeEvent(self, event):
+        # Stop pending WebRTC reconnects even if this is not the final Qt window.
+        self.video.close()
+        super().closeEvent(event)
 
-        self.input.update(
-            self.operator
-        )
+    def enter_kiosk_mode(self):
+        """Fullscreen presentation: no desktop panels or competing windows."""
+        self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
+        self.setWindowFlag(Qt.FramelessWindowHint, True)
+        self.showFullScreen()
+        self.raise_()
+        self.activateWindow()
 
-        self.network.update(
-            self.operator
-        )
+    def enter_desktop_mode(self):
+        """Release kiosk presentation so Steam Deck desktop remains accessible."""
+        self.setWindowFlag(Qt.WindowStaysOnTopHint, False)
+        self.setWindowFlag(Qt.FramelessWindowHint, False)
+        self.showNormal()
 
-        #
-        # Refresh HUD
-        #
-
+    def refresh(self, operator):
+        """Refresh visual components from the application-owned state."""
         self.hud.update()
