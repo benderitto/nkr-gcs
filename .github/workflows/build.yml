@@ -54,12 +54,21 @@ jobs:
           Remove-Item $log -ErrorAction SilentlyContinue
           $process = Start-Process ".\dist\nkr-gcs\nkr-gcs.exe" -PassThru
           try {
-            Start-Sleep -Seconds 8
-            $content = if (Test-Path $log) { Get-Content $log -Raw } else { "" }
-            if ($process.HasExited) {
-              Stop-SmokeTest `
-                "nkr-gcs.exe exited during startup with code $($process.ExitCode)" `
-                $content
+            $content = ""
+            for ($attempt = 0; $attempt -lt 30; $attempt++) {
+              Start-Sleep -Seconds 1
+              $content = if (Test-Path $log) { Get-Content $log -Raw } else { "" }
+              if ($process.HasExited) {
+                Stop-SmokeTest `
+                  "nkr-gcs.exe exited during startup with code $($process.ExitCode)" `
+                  $content
+              }
+              if (
+                $content -match "Main update loop started" -and
+                $content -match "hello sent; waiting for challenge"
+              ) {
+                break
+              }
             }
             if (-not (Test-Path $log)) {
               Stop-SmokeTest "Packaged GCS did not create its diagnostic log"
