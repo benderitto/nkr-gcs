@@ -39,3 +39,38 @@ def test_menu_can_set_persistent_drive_mode():
     operator = OperatorModel()
     mapping.update(ControllerState(), operator)
     assert operator.requested_drive_mode == MODE_REAR_DRIVE
+
+
+def test_xbox_short_menu_press_disarms_and_hold_arms():
+    now = [10.0]
+    mapping = InputMapping(input_device="xbox", clock=lambda: now[0])
+    operator = OperatorModel()
+
+    mapping.update(ControllerState(start=True), operator)
+    assert operator.buttons == 0
+    now[0] += 0.25
+    mapping.update(ControllerState(), operator)
+    assert operator.buttons == BUTTON_VIEW
+    now[0] += 0.11
+    mapping.update(ControllerState(), operator)
+    assert operator.buttons == 0
+
+    mapping.update(ControllerState(start=True), operator)
+    now[0] += 1.99
+    mapping.update(ControllerState(start=True), operator)
+    assert operator.buttons == 0
+    now[0] += 0.01
+    mapping.update(ControllerState(start=True), operator)
+    assert operator.buttons == BUTTON_MENU
+    mapping.update(ControllerState(), operator)
+    assert operator.buttons == 0  # A completed hold must not also disarm.
+
+
+def test_dualsense_uses_same_safety_timing_as_xbox():
+    now = [0.0]
+    mapping = InputMapping(input_device="dualsense", clock=lambda: now[0])
+    operator = OperatorModel()
+    mapping.update(ControllerState(start=True), operator)
+    now[0] = 2.0
+    mapping.update(ControllerState(start=True, back=True), operator)
+    assert operator.buttons == BUTTON_MENU

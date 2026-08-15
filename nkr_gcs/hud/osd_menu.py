@@ -14,13 +14,13 @@ logger = logging.getLogger(__name__)
 LANGUAGES = {
     "en": {"root": "GCS MENU", "drive": "DRIVE MODE", "camera": "CAM MODE",
            "light": "LIGHT MODE", "network": "NETWORK", "platform": "PLATFORM SETTINGS",
-           "app": "APP SETTINGS", "language": "LANGUAGE", "pending": "NOT AVAILABLE ON ROBOT"},
+           "app": "APP SETTINGS", "language": "LANGUAGE", "input_device": "INPUT DEVICE", "pending": "NOT AVAILABLE ON ROBOT"},
     "uk": {"root": "МЕНЮ GCS", "drive": "РЕЖИМ РУХУ", "camera": "РЕЖИМ КАМЕРИ",
            "light": "РЕЖИМ ОСВІТЛЕННЯ", "network": "МЕРЕЖА", "platform": "НАЛАШТУВАННЯ ПЛАТФОРМИ",
-           "app": "НАЛАШТУВАННЯ ДОДАТКУ", "language": "МОВА", "pending": "НЕДОСТУПНО НА НРК"},
+           "app": "НАЛАШТУВАННЯ ДОДАТКУ", "language": "МОВА", "input_device": "ПРИСТРІЙ КЕРУВАННЯ", "pending": "НЕДОСТУПНО НА НРК"},
     "qya": {"root": "GCS MÁNA", "drive": "RÁTE MÁQUA", "camera": "CENYEL RÁTE",
             "light": "CALMA RÁTE", "network": "RAHTA", "platform": "PALANTÍR SETTINGS",
-            "app": "APP SETTINGS", "language": "LAMBË", "pending": "ÚVA NÁ NKR"},
+            "app": "APP SETTINGS", "language": "LAMBË", "input_device": "INPUT DEVICE", "pending": "ÚVA NÁ NKR"},
 }
 
 
@@ -125,7 +125,12 @@ class OSDMenu(QWidget):
         if page == "camera":
             return [("action", "camera", stream, name) for stream, name in (("cam_front", "FRONT"), ("cam_rear", "REAR"), ("cam_night", "NIGHT"), ("cam_thermal", "THERMAL"))]
         if page == "app":
-            return [("page", "language", self._t("language"))]
+            return [("page", "input_device", self._t("input_device")),
+                    ("page", "language", self._t("language"))]
+        if page == "input_device":
+            return [("action", "input_device", code, label) for code, label in
+                    (("steamdeck", "Steam Deck"), ("xbox", "Xbox Controller"),
+                     ("dualsense", "DualSense"))]
         if page == "language":
             return [("action", "language", code, label) for code, label in (("en", "English (USA)"), ("uk", "Українська"), ("qya", "Quenya / qya"))]
         if page == "light":
@@ -154,7 +159,7 @@ class OSDMenu(QWidget):
         self._update_selection()
 
     def _entry_label(self, page):
-        return {"drive": self._t("drive"), "camera": self._t("camera"), "light": self._t("light"), "network": self._t("network"), "platform": self._t("platform"), "app": self._t("app"), "language": self._t("language")}[page]
+        return {"drive": self._t("drive"), "camera": self._t("camera"), "light": self._t("light"), "network": self._t("network"), "platform": self._t("platform"), "app": self._t("app"), "language": self._t("language"), "input_device": self._t("input_device")}[page]
 
     def _update_selection(self):
         for index, item in enumerate(self.items):

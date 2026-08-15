@@ -6,7 +6,7 @@ from .input.input_manager import InputManager
 from .network.network_manager import NetworkManager
 from .robot_state_notifier import RobotStateNotifier
 from .video.camera_controller import CameraController
-from .settings import load_settings
+from .settings import load_settings, save_setting
 from .presentation_controller import PresentationController
 from .osd_menu_controller import OSDMenuController
 
@@ -24,7 +24,7 @@ class Application(QObject):
 
         self.operator = OperatorModel()
 
-        self.input = InputManager()
+        self.input = InputManager(input_device=self.settings.input_device)
         self.network = NetworkManager(settings=self.settings, robot=self.window.robot)
         self.robot_notifier = RobotStateNotifier(self.window.popup, self.window.robot)
         self.window.video.set_popup(self.window.popup)
@@ -39,6 +39,7 @@ class Application(QObject):
             drive=self._select_drive_mode,
             camera=self.camera.select_stream,
             language=self.window.osd_menu.set_language,
+            input_device=self._select_input_device,
         )
         self.presentation = PresentationController(self.window)
         self.osd_menu = OSDMenuController(self.window.osd_menu, self.presentation)
@@ -88,3 +89,8 @@ class Application(QObject):
         self.input.select_drive_mode(mode)
         self.operator.requested_drive_mode = mode
         logger.info("Operator requested_drive_mode=%d", mode)
+
+    def _select_input_device(self, input_device: str):
+        self.input.select_input_device(input_device)
+        save_setting("input_device", input_device)
+        self.window.popup.show_message(f"INPUT: {input_device.upper()}")

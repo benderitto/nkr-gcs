@@ -35,6 +35,13 @@ kiosk mode. This does not change the UDP View button mapping. In kiosk mode,
 R4 opens/closes the in-flight OSD menu; the same menu opens by
 tapping the top-right hamburger icon.
 
+Select a controller profile in **GCS Menu → App Settings → Input Device**.
+Steam Deck keeps the existing bindings. On Xbox Controller, hold Menu for two
+seconds to arm or tap it to disarm; View retains the Steam Deck View function.
+On DualSense the same rule uses Options, while Share replaces Xbox View. All
+other axes and buttons keep the Steam Deck bindings. The selection persists
+across application restarts.
+
 Video options in `config/settings.yaml` are `video_enabled`, `video_host`,
 `video_port`, `video_default_stream`, and `video_low_latency_mode`. The host
 defaults to `robot_host` when omitted.

@@ -11,11 +11,11 @@ logger = logging.getLogger(__name__)
 
 class InputManager:
 
-    def __init__(self):
+    def __init__(self, input_device=InputMapping.STEAMDECK):
 
         self.controller = ControllerState()
 
-        self.mapping = InputMapping()
+        self.mapping = InputMapping(input_device=input_device)
 
         self.driver = SDLDriver()
 
@@ -56,6 +56,9 @@ class InputManager:
     def select_drive_mode(self, mode: int) -> None:
         self.mapping.mode_selector.set_mode(mode)
         logger.info("Menu selected drive mode=%d", mode)
+
+    def select_input_device(self, input_device: str) -> None:
+        self.mapping.set_input_device(input_device)
 
     def _is_neutral(self) -> bool:
         """Whether menu buttons were released.

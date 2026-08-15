@@ -16,6 +16,7 @@ class Settings:
     video_port: int = 8554
     video_default_stream: str = "cam_front"
     video_low_latency_mode: bool = True
+    input_device: str = "steamdeck"
 
     def __post_init__(self):
         if self.video_host is None:
@@ -45,6 +46,7 @@ def load_settings(path: Path | None = None) -> Settings:
         video_low_latency_mode=_as_bool(
             values.get("video_low_latency_mode", Settings.video_low_latency_mode),
         ),
+        input_device=values.get("input_device", Settings.input_device),
     )
 
 
@@ -72,9 +74,27 @@ def _write_default_settings(path: Path) -> None:
         f"video_host: {defaults.video_host}\n"
         f"video_port: {defaults.video_port}\n"
         f"video_default_stream: {defaults.video_default_stream}\n"
-        f"video_low_latency_mode: {str(defaults.video_low_latency_mode).lower()}\n",
+        f"video_low_latency_mode: {str(defaults.video_low_latency_mode).lower()}\n"
+        f"input_device: {defaults.input_device}\n",
         encoding="utf-8",
     )
+
+
+def save_setting(key: str, value: str, path: Path | None = None) -> None:
+    """Update one scalar setting without discarding user-owned values."""
+    path = path or settings_path()
+    if not path.exists():
+        _write_default_settings(path)
+    lines = path.read_text(encoding="utf-8").splitlines()
+    prefix = f"{key}:"
+    replacement = f"{key}: {value}"
+    for index, line in enumerate(lines):
+        if line.strip().startswith(prefix):
+            lines[index] = replacement
+            break
+    else:
+        lines.append(replacement)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def _as_bool(value) -> bool:
