@@ -36,6 +36,14 @@ class FakeClient:
         self.closed = True
 
 
+class ReceiveErrorClient(FakeClient):
+    def receive(self):
+        raise OSError("simulated Windows receive error")
+
+    def reopen(self):
+        pass
+
+
 def challenge(session_id=1234, challenge_value=5678):
     payload = struct.pack("<HBBII", MAGIC, VERSION, TYPE_SESSION_CHALLENGE,
                           session_id, challenge_value)
@@ -54,6 +62,17 @@ def test_control_is_not_sent_before_handshake():
     assert len(client.sent) == 1  # hello only
     assert len(client.sent[0]) == 6
     assert net.session.state is SessionState.WAIT_CHALLENGE
+
+
+def test_hello_is_sent_before_a_receive_error_can_reset_socket():
+    client = ReceiveErrorClient()
+    net = manager(client, lambda: 0.0)
+
+    net.update(OperatorModel())
+
+    assert len(client.sent) == 1
+    assert len(client.sent[0]) == 6
+    assert net.session.state is SessionState.DISCONNECTED
 
 
 def test_challenge_response_sets_session_and_control_uses_it():

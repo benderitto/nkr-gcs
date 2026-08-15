@@ -66,7 +66,8 @@ class NetworkManager:
         )
         try:
             self.client.send(pack_control(packet))
-        except OSError:
+        except OSError as exc:
+            logger.warning("UDP control send failed: %s", exc)
             self.session.transport_error()
             return robot_updated
         self.sequence = (self.sequence + 1) & 0xFFFF

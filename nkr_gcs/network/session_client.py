@@ -32,6 +32,7 @@ class SessionClient:
         self._state_since = None
         self._last_gateway_packet_at = None
         self._robot_states = []
+        self._last_transport_error_log_at = None
 
     @property
     def ready(self) -> bool:
@@ -40,16 +41,25 @@ class SessionClient:
     def update(self) -> None:
         """Progress handshake; never transitions to ACTIVE without response."""
         now = self.clock()
+
+        # Send before the first non-blocking receive. On Windows, recvfrom()
+        # can report a transport error before the socket has sent anything;
+        # the former receive-first order therefore prevented negotiation from
+        # ever starting on an otherwise healthy Tailscale connection.
+        if self.state is SessionState.DISCONNECTED:
+            self._send_hello(now)
+            if self.state is SessionState.DISCONNECTED:
+                return
+
         try:
             for raw in self.client.receive():
                 self._handle_datagram(raw, now)
-        except OSError:
+        except OSError as exc:
+            self._log_transport_error("receive", exc, now)
             self._recover_socket()
             return
 
-        if self.state is SessionState.DISCONNECTED:
-            self._send_hello(now)
-        elif self.state is SessionState.WAIT_CHALLENGE:
+        if self.state is SessionState.WAIT_CHALLENGE:
             if now - self._state_since >= self.handshake_timeout:
                 self.disconnect()
                 self._send_hello(now)
@@ -63,7 +73,8 @@ class SessionClient:
     def _send_hello(self, now: float) -> None:
         try:
             self.client.send(pack_session_hello())
-        except OSError:
+        except OSError as exc:
+            self._log_transport_error("send hello", exc, now)
             self._recover_socket()
             return
         self.state = SessionState.WAIT_CHALLENGE
@@ -85,7 +96,8 @@ class SessionClient:
             self.client.send(pack_session_response(
                 challenge.session_id, challenge.challenge,
             ))
-        except OSError:
+        except OSError as exc:
+            self._log_transport_error("send response", exc, now)
             self._recover_socket()
             return
         self.session_id = challenge.session_id
@@ -131,5 +143,18 @@ class SessionClient:
         if reopen is not None:
             try:
                 reopen()
-            except OSError:
-                pass
+            except OSError as exc:
+                self._log_transport_error("reopen socket", exc, self.clock())
+
+    def _log_transport_error(self, operation: str, exc: OSError, now: float) -> None:
+        """Persist useful Windows error codes without flooding a 100 Hz loop."""
+        if (
+            self._last_transport_error_log_at is None
+            or now - self._last_transport_error_log_at >= 1.0
+        ):
+            logger.warning(
+                "NKR UDP transport error during %s: %s (errno=%s, winerror=%s)",
+                operation, exc, getattr(exc, "errno", None),
+                getattr(exc, "winerror", None),
+            )
+            self._last_transport_error_log_at = now
