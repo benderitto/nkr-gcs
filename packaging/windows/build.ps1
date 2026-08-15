@@ -7,5 +7,6 @@ python -m PyInstaller --noconfirm --clean --windowed `
   --paths nkr_protocol `
   --collect-all av `
   --collect-all sdl2 `
+  --collect-all sdl2dll `
   run.py
 Write-Host "Windows bundle created in dist\nkr-gcs"

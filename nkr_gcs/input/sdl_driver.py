@@ -1,5 +1,14 @@
-import sdl2
 import logging
+
+# On Windows the pysdl2-dll wheel sets PYSDL2_DLL_PATH to its bundled native
+# libraries.  Import it before PySDL2; Linux/Flatpak uses the system SDL and
+# therefore legitimately has no sdl2dll module.
+try:
+    import sdl2dll  # noqa: F401
+except ImportError:
+    pass
+
+import sdl2
 
 from .controller import ControllerState
 

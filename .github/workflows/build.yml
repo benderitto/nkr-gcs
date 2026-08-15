@@ -41,6 +41,15 @@ jobs:
           cache: pip
       - shell: pwsh
         run: ./packaging/windows/build.ps1
+      - name: Smoke-test Windows executable
+        shell: pwsh
+        run: |
+          $process = Start-Process ".\dist\nkr-gcs\nkr-gcs.exe" -PassThru
+          Start-Sleep -Seconds 8
+          if ($process.HasExited) {
+            throw "nkr-gcs.exe exited during startup with code $($process.ExitCode)"
+          }
+          Stop-Process -Id $process.Id -Force
       - uses: actions/upload-artifact@v4
         with:
           name: nkr-gcs-windows-x64
@@ -73,10 +82,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          VERSION="${GITHUB_REF_NAME#v}"
           gh release create "$GITHUB_REF_NAME" \
             --verify-tag \
             --title "NKR GCS $GITHUB_REF_NAME" \
-            --notes-file packaging/release-notes-v0.2.0.md \
+            --notes-file "packaging/release-notes-v${VERSION}.md" \
             release/nkr-gcs-linux-x86_64.flatpak \
             release/nkr-gcs-windows-x64.zip \
             release/SHA256SUMS.txt

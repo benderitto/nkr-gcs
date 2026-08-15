@@ -10,5 +10,5 @@
   </description>
   <launchable type="desktop-id">ua.nkr.GCS.desktop</launchable>
   <provides><binary>nkr-gcs</binary></provides>
-  <releases><release version="0.2.0" date="2026-08-15"/></releases>
+  <releases><release version="0.2.1" date="2026-08-15"/></releases>
 </component>
