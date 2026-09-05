@@ -1,5 +1,6 @@
 import sys
 import logging
+import multiprocessing
 import os
 import platform
 
@@ -23,6 +24,7 @@ def acquire_instance_lock(path=None):
 
 
 def main():
+    multiprocessing.freeze_support()
     diagnostic_log = configure_logging()
     logger = logging.getLogger(__name__)
     logger.info(

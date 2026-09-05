@@ -182,8 +182,7 @@ def test_button_edge_is_computed_against_last_sent_packet():
 
 def test_application_runs_network_manager_through_control_worker():
     source = open("nkr_gcs/application.py", encoding="utf-8").read()
-    assert "self.network = NetworkManager(settings=self.settings, robot=self.window.robot)" in source
-    assert "self.control_worker = ControlWorker(self.network)" in source
+    assert "self.control_worker = ControlWorker(self.settings)" in source
     assert "self.control_worker.submit(self.operator)" in source
     assert "self.network.update(self.operator)" not in source
 

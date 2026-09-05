@@ -1,6 +1,7 @@
 """Run GCS from a source checkout or its isolated Flatpak."""
 
 import importlib.util
+import multiprocessing
 import os
 import shutil
 import subprocess
@@ -75,4 +76,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    multiprocessing.freeze_support()
     main()

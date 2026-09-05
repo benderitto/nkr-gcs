@@ -4,7 +4,6 @@ import time
 
 from .model.operator_model import OperatorModel
 from .input.input_manager import InputManager
-from .network.network_manager import NetworkManager
 from .network.control_worker import ControlWorker
 from .robot_state_notifier import RobotStateNotifier
 from .video.camera_controller import CameraController
@@ -37,8 +36,7 @@ class Application(QObject):
         self.operator = OperatorModel()
 
         self.input = InputManager(input_device=self.settings.input_device)
-        self.network = NetworkManager(settings=self.settings, robot=self.window.robot)
-        self.control_worker = ControlWorker(self.network)
+        self.control_worker = ControlWorker(self.settings)
         self.time_sync = NetworkTimeSynchronizer()
         self.time_sync.start()
         self.robot_notifier = RobotStateNotifier(self.window.popup, self.window.robot)
@@ -112,7 +110,13 @@ class Application(QObject):
             "control mailbox",
             lambda: self.control_worker.submit(self.operator),
         )
-        if self.control_worker.take_robot_updated():
+        robot_update = self.control_worker.take_robot_update()
+        if robot_update is not None:
+            for field in (
+                "active_mode", "drive_mode", "active_light_mode", "light_mode",
+                "armed", "estop",
+            ):
+                setattr(self.window.robot, field, getattr(robot_update, field))
             # Runs from the Qt timer, so popup work remains on the GUI thread.
             self._run_stage(
                 "robot state notification",

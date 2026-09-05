@@ -73,9 +73,10 @@ Gateway telemetry is accepted only while the session is active and when its
 `session_id` matches. It updates active drive mode, armed/disarmed, and E-stop
 state in the GCS UI.
 
-Control UDP runs on a dedicated worker and is not scheduled by the Qt/video
-event loop. The GUI publishes current operator snapshots to a mailbox. If a
-snapshot becomes older than 250 ms, the worker keeps the authenticated session
+Control UDP runs in a dedicated spawned process with its own Python interpreter
+and is not scheduled by the Qt/video event loop or blocked by its GIL. The GUI
+publishes current operator snapshots to a latest-value mailbox. If a snapshot
+becomes older than 250 ms, the control process keeps the authenticated session
 alive but sends zero motion with full brake until fresh controller data resumes.
 
 Run the tests with:
