@@ -67,7 +67,9 @@ jobs:
           }
           $log = Join-Path $env:APPDATA "NKR-GCS\nkr-gcs.log"
           Remove-Item $log -ErrorAction SilentlyContinue
-          $env:NKR_GCS_SMOKE_EXIT_MS = "5000"
+          # Slow hosted runners can spend several seconds starting the
+          # bundled GStreamer process before Qt services its first timer.
+          $env:NKR_GCS_SMOKE_EXIT_MS = "15000"
           $bundledGst = ".\dist\nkr-gcs\_internal\gstreamer\bin\gst-launch-1.0.exe"
           if (-not (Test-Path $bundledGst)) {
             Stop-SmokeTest "Windows package does not contain GStreamer"
@@ -103,7 +105,7 @@ jobs:
             if ($content -notmatch "Bundled GStreamer connecting") {
               Stop-SmokeTest "Packaged GCS did not select bundled GStreamer" $content
             }
-            if (-not $process.WaitForExit(15000)) {
+            if (-not $process.WaitForExit(30000)) {
               Stop-SmokeTest "Packaged GCS did not shut down cleanly" $content
             }
             if ($process.ExitCode -ne 0) {
