@@ -1,8 +1,11 @@
 from nkr_gcs.input.controller import ControllerState
 from nkr_gcs.input.mapping import InputMapping
 from nkr_gcs.model.operator_model import OperatorModel
-from nkr_protocol.constants import BUTTON_MENU, BUTTON_STEAM, BUTTON_VIEW
-from nkr_protocol.constants import MODE_REAR_DRIVE
+from nkr_protocol.constants import (
+    BUTTON_MENU, BUTTON_STEAM, BUTTON_VIEW,
+    LIGHT_DARK, LIGHT_HIGH_BEAM, LIGHT_LOW_BEAM, LIGHT_SEARCHLIGHT,
+    MODE_REAR_DRIVE,
+)
 
 
 def test_mapping_clamps_axes_and_tracks_button_edges():
@@ -39,6 +42,24 @@ def test_menu_can_set_persistent_drive_mode():
     operator = OperatorModel()
     mapping.update(ControllerState(), operator)
     assert operator.requested_drive_mode == MODE_REAR_DRIVE
+
+
+def test_menu_and_x_button_select_persistent_light_mode():
+    mapping = InputMapping()
+    operator = OperatorModel()
+    assert operator.requested_light_mode == LIGHT_DARK
+
+    mapping.set_light_mode(LIGHT_SEARCHLIGHT)
+    mapping.update(ControllerState(), operator)
+    assert operator.requested_light_mode == LIGHT_SEARCHLIGHT
+
+    mapping.update(ControllerState(x=True), operator)
+    assert operator.requested_light_mode == LIGHT_LOW_BEAM
+    mapping.update(ControllerState(x=True), operator)
+    assert operator.requested_light_mode == LIGHT_LOW_BEAM
+    mapping.update(ControllerState(), operator)
+    mapping.update(ControllerState(x=True), operator)
+    assert operator.requested_light_mode == LIGHT_HIGH_BEAM
 
 
 def test_xbox_short_menu_press_disarms_and_hold_arms():

@@ -9,6 +9,10 @@ from nkr_gcs.hud.hud_widget import HUDWidget
 from nkr_gcs.hud.osd_menu import OSDMenu
 from nkr_gcs.main_window import MainWindow
 from nkr_gcs.model.robot_model import RobotModel
+from nkr_protocol.constants import (
+    LIGHT_DARK, LIGHT_HIGH_BEAM, LIGHT_LOW_BEAM, LIGHT_PARKING,
+    LIGHT_SEARCHLIGHT,
+)
 
 
 def _app():
@@ -43,6 +47,25 @@ def test_hud_renders_armed_live_state():
     hud.render(image)
     assert image.pixelColor(110, 40).alpha() > 0
     assert image.pixelColor(640, 40).alpha() > 0
+
+
+def test_light_menu_exposes_real_mode_actions():
+    _app()
+    menu = OSDMenu()
+    selected = []
+    menu.set_callbacks(light=selected.append)
+    menu._stack = ["root", "light"]
+    menu._render()
+    assert [entry[:3] for entry in menu.entries] == [
+        ("action", "light", LIGHT_LOW_BEAM),
+        ("action", "light", LIGHT_HIGH_BEAM),
+        ("action", "light", LIGHT_SEARCHLIGHT),
+        ("action", "light", LIGHT_PARKING),
+        ("action", "light", LIGHT_DARK),
+    ]
+    menu.activate(4)
+    assert selected == [LIGHT_DARK]
+    menu.close()
 
 
 def test_main_window_has_application_quit_shortcut():

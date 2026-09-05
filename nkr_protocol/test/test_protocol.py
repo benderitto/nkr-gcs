@@ -19,6 +19,8 @@ def test_pack_unpack():
 
     pkt = ControlPacket()
 
+    pkt.session_id = 42
+
     pkt.sequence = 123
 
     pkt.throttle = 800
@@ -28,6 +30,8 @@ def test_pack_unpack():
     pkt.brake = 350
 
     pkt.requested_mode = MODE_CRAB
+
+    pkt.requested_light_mode = LIGHT_HIGH_BEAM
 
     pkt.buttons = BUTTON_A | BUTTON_L1
 
@@ -68,12 +72,12 @@ def test_control_crc_version_type_and_axis_validation():
         unpack_control(bytes(raw))
 
     payload = CONTROL_STRUCT.pack(MAGIC, VERSION + 1, TYPE_CONTROL, 1, 0,
-                                  0, 0, 0, 0, 0, 0)
+                                  0, 0, 0, 0, 0, 0, 0)
     with pytest.raises(ValueError, match="version"):
         unpack_control(payload + CRC_STRUCT.pack(crc16(payload)))
 
     payload = CONTROL_STRUCT.pack(MAGIC, VERSION, TYPE_TELEMETRY, 1, 0,
-                                  0, 0, 0, 0, 0, 0)
+                                  0, 0, 0, 0, 0, 0, 0)
     with pytest.raises(ValueError, match="type"):
         unpack_control(payload + CRC_STRUCT.pack(crc16(payload)))
 
@@ -93,6 +97,7 @@ def test_session_packet_pack_unpack():
 
 def test_robot_state_round_trip_and_validation():
     packet = RobotStatePacket(session_id=42, active_mode=MODE_TANK,
+                              active_light_mode=LIGHT_SEARCHLIGHT,
                               flags=ROBOT_STATE_ARMED | ROBOT_STATE_ESTOP)
     raw = pack_robot_state(packet)
     assert unpack_robot_state(raw) == packet
@@ -107,6 +112,9 @@ def test_robot_state_round_trip_and_validation():
         (MAGIC, VERSION + 1, TYPE_TELEMETRY, "version"),
         (MAGIC, VERSION, TYPE_CONTROL, "type"),
     ):
-        payload = struct.pack("<HBBIBB", magic, version, packet_type, 42, 1, 0)
+        payload = struct.pack(
+            "<HBBIBBB", magic, version, packet_type, 42, 1,
+            LIGHT_LOW_BEAM, 0,
+        )
         with pytest.raises(ValueError, match=message):
             unpack_robot_state(payload + CRC_STRUCT.pack(crc16(payload)))

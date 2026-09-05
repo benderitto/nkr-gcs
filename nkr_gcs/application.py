@@ -5,6 +5,7 @@ import time
 from .model.operator_model import OperatorModel
 from .input.input_manager import InputManager
 from .network.network_manager import NetworkManager
+from .network.control_worker import ControlWorker
 from .robot_state_notifier import RobotStateNotifier
 from .video.camera_controller import CameraController
 from .settings import load_settings, save_setting
@@ -37,6 +38,7 @@ class Application(QObject):
 
         self.input = InputManager(input_device=self.settings.input_device)
         self.network = NetworkManager(settings=self.settings, robot=self.window.robot)
+        self.control_worker = ControlWorker(self.network)
         self.time_sync = NetworkTimeSynchronizer()
         self.time_sync.start()
         self.robot_notifier = RobotStateNotifier(self.window.popup, self.window.robot)
@@ -55,6 +57,7 @@ class Application(QObject):
         self.window.osd_menu.set_callbacks(
             drive=self._select_drive_mode,
             camera=self.camera.select_stream,
+            light=self._select_light_mode,
             language=self.window.osd_menu.set_language,
             input_device=self._select_input_device,
         )
@@ -105,14 +108,11 @@ class Application(QObject):
                         lambda: self.camera.update(self.input.controller),
                     )
 
-        robot_updated = [False]
         self._run_stage(
-            "UDP network",
-            lambda: robot_updated.__setitem__(
-                0, self.network.update(self.operator),
-            ),
+            "control mailbox",
+            lambda: self.control_worker.submit(self.operator),
         )
-        if robot_updated[0]:
+        if self.control_worker.take_robot_updated():
             # Runs from the Qt timer, so popup work remains on the GUI thread.
             self._run_stage(
                 "robot state notification",
@@ -139,9 +139,9 @@ class Application(QObject):
         self._closed = True
         logger.info("NKR GCS shutting down")
         self.timer.stop()
+        self.control_worker.close()
         self.window.video.shutdown()
         self.input.close()
-        self.network.close()
         self.time_sync.stop()
         logger.info("NKR GCS shutdown complete")
 
@@ -149,6 +149,11 @@ class Application(QObject):
         self.input.select_drive_mode(mode)
         self.operator.requested_drive_mode = mode
         logger.info("Operator requested_drive_mode=%d", mode)
+
+    def _select_light_mode(self, mode: int):
+        self.input.select_light_mode(mode)
+        self.operator.requested_light_mode = mode
+        logger.info("Operator requested_light_mode=%d", mode)
 
     def _select_input_device(self, input_device: str):
         self.input.select_input_device(input_device)

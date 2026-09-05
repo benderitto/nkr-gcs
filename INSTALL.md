@@ -44,6 +44,24 @@ Settings persist outside application updates at:
 
 No `pacman` packages are required after the Flatpak is installed.
 
+### Steam Deck control-link reliability
+
+If the robot disarms while the video and controls briefly disappear, inspect
+the iwd journal for `event: roam-scan`. On a dedicated operator station,
+disable iwd roaming scans and Wi-Fi power saving for the active connection:
+
+```bash
+sudo mkdir -p /etc/iwd
+printf '[Scan]\nDisableRoamingScan=true\n' | sudo tee /etc/iwd/main.conf >/dev/null
+sudo nmcli connection modify Home_5G 802-11-wireless.powersave 2
+sudo systemctl restart iwd
+```
+
+Replace `Home_5G` with the connection name shown by
+`nmcli connection show --active`. Wi-Fi and Tailscale disconnect briefly while
+iwd restarts. This setting trades automatic access-point roaming for a stable
+control link, so use it only on a Steam Deck dedicated to robot operation.
+
 ## Other Linux PCs
 
 Install Flatpak and add Flathub once, using the instructions for the Linux
@@ -107,9 +125,9 @@ the public internet; use Tailscale or another trusted VPN.
 ## Supported controllers
 
 SDL2 supports the Steam Deck controls, Xbox controllers, DualSense/DualShock,
-and other SDL-compatible gamepads. The current release opens the first
-compatible controller. Device selection, calibration, and editable button
-profiles are planned follow-up features.
+and other SDL-compatible gamepads. Select the active profile in
+**GCS Menu → App Settings → Input Device**. Calibration and fully editable
+button profiles are planned follow-up features.
 
 ## Building the Flatpak
 

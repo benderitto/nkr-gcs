@@ -1,7 +1,7 @@
-"""NKR UDP Protocol v2 constants."""
+"""NKR UDP Protocol v3 constants."""
 
 MAGIC = 0x4E4B          # "NK"
-VERSION = 2
+VERSION = 3
 
 TYPE_CONTROL = 1
 TYPE_TELEMETRY = 2
@@ -68,3 +68,14 @@ AXIS_SCALE = 1000.0
 AXIS_MIN = -1.0
 AXIS_MAX = 1.0
 MODE_INVALID = 255
+
+#
+# Lighting modes
+#
+
+LIGHT_KEEP = 0
+LIGHT_DARK = 1
+LIGHT_LOW_BEAM = 2
+LIGHT_HIGH_BEAM = 3
+LIGHT_SEARCHLIGHT = 4
+LIGHT_PARKING = 5

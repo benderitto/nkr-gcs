@@ -1,6 +1,7 @@
 from nkr_gcs.input.controller import ControllerState
 from nkr_gcs.input.input_manager import InputManager
 from nkr_gcs.model.operator_model import OperatorModel
+from nkr_protocol.constants import LIGHT_DARK, LIGHT_KEEP
 
 
 def test_menu_suppression_sends_neutral_operator_until_input_released():
@@ -8,10 +9,12 @@ def test_menu_suppression_sends_neutral_operator_until_input_released():
     manager.controller = ControllerState(dpad_up=True, a=True)
     manager._suppress_until_released = False
     operator = OperatorModel(throttle=1.0, steering=1.0, brake=1.0,
-                             requested_drive_mode=2, buttons=123)
+                             requested_drive_mode=2,
+                             requested_light_mode=LIGHT_DARK, buttons=123)
     manager.suppress_operator(operator)
     assert (operator.throttle, operator.steering, operator.brake,
-            operator.requested_drive_mode, operator.buttons) == (0.0, 0.0, 0.0, 0, 0)
+            operator.requested_drive_mode, operator.requested_light_mode,
+            operator.buttons) == (0.0, 0.0, 0.0, 0, LIGHT_KEEP, 0)
     assert manager._is_neutral() is False
     manager.controller = ControllerState()
     assert manager._is_neutral() is True

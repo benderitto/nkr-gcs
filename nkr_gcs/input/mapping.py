@@ -8,6 +8,8 @@ from .mode_selector import ModeSelector
 from nkr_protocol.constants import (
     BUTTON_A, BUTTON_B, BUTTON_X, BUTTON_Y, BUTTON_L1, BUTTON_R1,
     BUTTON_VIEW, BUTTON_MENU, BUTTON_STEAM,
+    LIGHT_DARK, LIGHT_HIGH_BEAM, LIGHT_LOW_BEAM, LIGHT_PARKING,
+    LIGHT_SEARCHLIGHT,
 )
 
 logger = logging.getLogger(__name__)
@@ -33,6 +35,8 @@ class InputMapping:
         self._safety_pressed_at = None
         self._arm_sent = False
         self._disarm_until = 0.0
+        self._light_mode = LIGHT_DARK
+        self._x_pressed = False
         self.set_input_device(input_device)
 
     @property
@@ -46,7 +50,18 @@ class InputMapping:
         self._safety_pressed_at = None
         self._arm_sent = False
         self._disarm_until = 0.0
+        self._x_pressed = False
         logger.info("Input profile selected: %s", input_device)
+
+    def set_light_mode(self, light_mode):
+        supported = (
+            LIGHT_DARK, LIGHT_LOW_BEAM, LIGHT_HIGH_BEAM,
+            LIGHT_SEARCHLIGHT, LIGHT_PARKING,
+        )
+        if light_mode not in supported:
+            raise ValueError(f"Unsupported light mode: {light_mode}")
+        self._light_mode = light_mode
+        logger.info("Menu selected light mode=%d", light_mode)
 
     def update(
         self,
@@ -86,6 +101,18 @@ class InputMapping:
         if operator.requested_drive_mode != self._last_logged_mode:
             logger.info("Input requested_drive_mode=%d", operator.requested_drive_mode)
             self._last_logged_mode = operator.requested_drive_mode
+
+        # X alternates the driving lights. From every other mode it starts
+        # with low beam; a held button changes the mode only once.
+        if controller.x and not self._x_pressed:
+            self._light_mode = (
+                LIGHT_HIGH_BEAM
+                if self._light_mode == LIGHT_LOW_BEAM
+                else LIGHT_LOW_BEAM
+            )
+            logger.info("X selected light mode=%d", self._light_mode)
+        self._x_pressed = controller.x
+        operator.requested_light_mode = self._light_mode
 
         buttons = self._buttons(controller)
         # This preserves input-frame edges for local consumers.  NetworkManager

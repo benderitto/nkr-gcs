@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from nkr_protocol.constants import LIGHT_DARK
+
 
 @dataclass
 class OperatorModel:
@@ -20,7 +22,7 @@ class OperatorModel:
 
     requested_camera: int = 0
 
-    requested_light_mode: int = 0
+    requested_light_mode: int = LIGHT_DARK
 
     #
     # Buttons

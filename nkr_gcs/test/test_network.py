@@ -6,7 +6,8 @@ from nkr_gcs.network.session_client import SessionState
 from nkr_gcs.settings import Settings
 from nkr_gcs.model.robot_model import RobotModel
 from nkr_protocol.constants import (
-    BUTTON_MENU, MAGIC, MODE_CRAB, ROBOT_STATE_ARMED, ROBOT_STATE_ESTOP,
+    BUTTON_MENU, LIGHT_HIGH_BEAM, LIGHT_SEARCHLIGHT, MAGIC, MODE_CRAB,
+    ROBOT_STATE_ARMED, ROBOT_STATE_ESTOP,
     TYPE_SESSION_CHALLENGE, VERSION,
 )
 from nkr_protocol.crc import crc16
@@ -93,6 +94,19 @@ def test_challenge_response_sets_session_and_control_uses_it():
     assert (control.throttle, control.steering, control.brake) == (1000, -1000, 1000)
 
 
+def test_light_mode_is_sent_in_control_packet():
+    now = [0.0]
+    client = FakeClient()
+    net = manager(client, lambda: now[0])
+    operator = OperatorModel(requested_light_mode=LIGHT_HIGH_BEAM)
+    net.update(operator)
+    client.incoming.append(challenge())
+    net.update(operator)
+    now[0] = 0.02
+    net.update(operator)
+    assert unpack_control(client.sent[-1]).requested_light_mode == LIGHT_HIGH_BEAM
+
+
 def test_sequence_wraps_and_socket_is_reused():
     now = [0.0]
     client = FakeClient()
@@ -166,10 +180,12 @@ def test_button_edge_is_computed_against_last_sent_packet():
     assert (released.buttons, released.buttons_changed) == (0, BUTTON_MENU)
 
 
-def test_application_owns_and_updates_network_manager():
+def test_application_runs_network_manager_through_control_worker():
     source = open("nkr_gcs/application.py", encoding="utf-8").read()
     assert "self.network = NetworkManager(settings=self.settings, robot=self.window.robot)" in source
-    assert "self.network.update(self.operator)" in source
+    assert "self.control_worker = ControlWorker(self.network)" in source
+    assert "self.control_worker.submit(self.operator)" in source
+    assert "self.network.update(self.operator)" not in source
 
 
 def test_telemetry_updates_robot_model_and_stale_session_is_ignored():
@@ -181,14 +197,22 @@ def test_telemetry_updates_robot_model_and_stale_session_is_ignored():
     net.update(OperatorModel())
     client.incoming.append(challenge(session_id=1234))
     net.update(OperatorModel())
-    stale = pack_robot_state(RobotStatePacket(9, MODE_CRAB, ROBOT_STATE_ARMED))
+    stale = pack_robot_state(RobotStatePacket(
+        session_id=9, active_mode=MODE_CRAB,
+        active_light_mode=LIGHT_HIGH_BEAM, flags=ROBOT_STATE_ARMED,
+    ))
     current = pack_robot_state(RobotStatePacket(
-        1234, MODE_CRAB, ROBOT_STATE_ARMED | ROBOT_STATE_ESTOP,
+        session_id=1234, active_mode=MODE_CRAB,
+        active_light_mode=LIGHT_SEARCHLIGHT,
+        flags=ROBOT_STATE_ARMED | ROBOT_STATE_ESTOP,
     ))
     client.incoming.extend([stale, current])
     now[0] = 0.02
     assert net.update(OperatorModel()) is True
     assert (robot.active_mode, robot.drive_mode, robot.armed, robot.estop) == (
         MODE_CRAB, "CRAB", True, True,
+    )
+    assert (robot.active_light_mode, robot.light_mode) == (
+        LIGHT_SEARCHLIGHT, "SEARCH",
     )
     assert net.session._last_gateway_packet_at == now[0]

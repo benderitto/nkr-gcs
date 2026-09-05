@@ -2,7 +2,7 @@
 
 GCS is a cross-platform PySide6 application for Steam Deck, Linux, and Windows.
 It reads SDL2 controller input, converts it to operator intent, and sends NKR
-UDP Protocol v2 control packets to the robot's ROS2 Gateway over Tailscale.
+UDP Protocol v3 control packets to the robot's ROS2 Gateway over Tailscale.
 The same long-lived UDP socket receives authenticated robot-state telemetry for
 the HUD and state-change popups; GCS still has no ROS2 dependency.
 
@@ -42,6 +42,11 @@ kiosk mode. This does not change the UDP View button mapping. In kiosk mode,
 R4 opens/closes the in-flight OSD menu; the same menu opens by
 tapping the top-right hamburger icon.
 
+The **LIGHT MODE** menu selects low beam, high beam, searchlight, parking
+lights, or Dark Mode. Controller X alternates low and high beam; from another
+mode its first press selects low beam. Dark Mode commands a complete blackout,
+including the automatic stop signal and parking lights.
+
 Press `Ctrl+Shift+Q` to close GCS cleanly on Windows, Linux, or Steam Deck.
 
 Select a controller profile in **GCS Menu → App Settings → Input Device**.
@@ -61,12 +66,17 @@ Network settings are explicit in `config/settings.yaml`. The GCS opens one
 long-lived non-blocking UDP socket, sends a session hello on startup, accepts a
 gateway challenge, and responds with the same challenge. Only then does it send
 control packets at 50 Hz. To verify the session, inspect the gateway log for a
-hello/challenge/response followed by v2 controls from the Steam Deck address;
+hello/challenge/response followed by v3 controls from the Steam Deck address;
 the GCS sends no controls before that exchange completes.
 
 Gateway telemetry is accepted only while the session is active and when its
 `session_id` matches. It updates active drive mode, armed/disarmed, and E-stop
 state in the GCS UI.
+
+Control UDP runs on a dedicated worker and is not scheduled by the Qt/video
+event loop. The GUI publishes current operator snapshots to a mailbox. If a
+snapshot becomes older than 250 ms, the worker keeps the authenticated session
+alive but sends zero motion with full brake until fresh controller data resumes.
 
 Run the tests with:
 

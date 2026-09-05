@@ -9,6 +9,8 @@ from PySide6.QtWidgets import (
 )
 
 from nkr_protocol.constants import (
+    LIGHT_DARK, LIGHT_HIGH_BEAM, LIGHT_LOW_BEAM, LIGHT_PARKING,
+    LIGHT_SEARCHLIGHT,
     MODE_CRAB, MODE_FRONT_DRIVE, MODE_FRONT_STEER, MODE_REAR_DRIVE, MODE_TANK,
 )
 
@@ -195,7 +197,13 @@ class OSDMenu(QWidget):
                     (("en", "English (USA)"), ("uk", "Українська"),
                      ("qya", "Quenya / qya"))]
         if page == "light":
-            labels = ("LOW BEAM", "HIGH BEAM", "SEARCHLIGHT", "PARKING LIGHTS", "DARK MODE")
+            return [("action", "light", mode, name) for mode, name in (
+                (LIGHT_LOW_BEAM, "LOW BEAM"),
+                (LIGHT_HIGH_BEAM, "HIGH BEAM"),
+                (LIGHT_SEARCHLIGHT, "SEARCHLIGHT"),
+                (LIGHT_PARKING, "PARKING LIGHTS"),
+                (LIGHT_DARK, "DARK MODE"),
+            )]
         elif page == "network":
             labels = ("LTE", "STARLINK")
         else:

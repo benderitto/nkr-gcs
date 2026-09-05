@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from nkr_protocol.constants import MODE_FRONT_STEER
+from nkr_protocol.constants import LIGHT_DARK, MODE_FRONT_STEER
 
 MODE_NAMES = {
     1: "FRONT STEER",
@@ -8,6 +8,14 @@ MODE_NAMES = {
     3: "CRAB",
     4: "FRONT DRIVE",
     5: "REAR DRIVE",
+}
+
+LIGHT_MODE_NAMES = {
+    1: "DRK",
+    2: "LOW",
+    3: "HIGH",
+    4: "SEARCH",
+    5: "PARK",
 }
 
 
@@ -38,6 +46,7 @@ class RobotModel:
     # Lights
     #
 
+    active_light_mode: int = LIGHT_DARK
     light_mode: str = "DRK"
 
     #

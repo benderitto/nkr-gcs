@@ -321,7 +321,14 @@ Main Thread
 
 Network Thread
 
-- UDP
+- authenticated UDP send/receive at a fixed cadence
+- latest-value operator mailbox
+- 250 ms local stale-input brake watchdog
+
+The network thread never repeats stale motion indefinitely. If the GUI stops
+publishing fresh controller snapshots, it sends zero motion with full brake
+while keeping the session alive. The robot-side safety timeout remains the
+final authority if the network thread or transport fails.
 
 Video Thread
 

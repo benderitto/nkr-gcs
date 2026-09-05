@@ -8,7 +8,7 @@ from nkr_protocol.packets import ControlPacket
 from nkr_protocol.protocol import pack_control
 from nkr_protocol.constants import ROBOT_STATE_ARMED, ROBOT_STATE_ESTOP
 
-from ..model.robot_model import MODE_NAMES
+from ..model.robot_model import LIGHT_MODE_NAMES, MODE_NAMES
 from ..settings import load_settings
 from .session_client import SessionClient, SessionState
 from .udp_client import UDPClient
@@ -59,6 +59,7 @@ class NetworkManager:
             steering=encode_axis(operator.steering),
             brake=encode_axis(operator.brake),
             requested_mode=operator.requested_drive_mode,
+            requested_light_mode=operator.requested_light_mode,
             buttons=operator.buttons,
             # Edges must survive input frames that occur between 50 Hz UDP
             # transmissions.  Gateway evaluates pressed as buttons & changed.
@@ -89,6 +90,9 @@ class NetworkManager:
         for packet in states:
             self.robot.active_mode = packet.active_mode
             self.robot.drive_mode = MODE_NAMES.get(packet.active_mode, "UNKNOWN")
+            self.robot.active_light_mode = packet.active_light_mode
+            self.robot.light_mode = LIGHT_MODE_NAMES.get(
+                packet.active_light_mode, "UNKNOWN")
             self.robot.armed = bool(packet.flags & ROBOT_STATE_ARMED)
             self.robot.estop = bool(packet.flags & ROBOT_STATE_ESTOP)
         return True

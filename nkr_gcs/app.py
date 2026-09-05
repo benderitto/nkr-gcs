@@ -3,13 +3,23 @@ import logging
 import os
 import platform
 
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QLockFile, QTimer
 from PySide6.QtWidgets import QApplication
 
 from .main_window import MainWindow
 from .application import Application
 from .logging_config import configure_logging
 from .settings import settings_path
+
+
+def acquire_instance_lock(path=None):
+    """Hold a shared-config lock so only one GCS controls the robot."""
+    path = path or settings_path().with_name("instance.lock")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lock = QLockFile(str(path))
+    if not lock.tryLock(0):
+        return None
+    return lock
 
 
 def main():
@@ -22,6 +32,11 @@ def main():
     )
     logger.info("Settings: %s", settings_path())
     logger.info("Diagnostic log: %s", diagnostic_log)
+
+    instance_lock = acquire_instance_lock()
+    if instance_lock is None:
+        logger.warning("NKR GCS is already running; duplicate launch ignored")
+        return
 
     app = QApplication(sys.argv)
 
@@ -37,4 +52,5 @@ def main():
         exit_code = app.exec()
     finally:
         controller.close()
+        instance_lock.unlock()
     sys.exit(exit_code)

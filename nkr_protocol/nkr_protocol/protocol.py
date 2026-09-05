@@ -1,4 +1,4 @@
-"""NKR UDP Protocol v2 packing and validation (little-endian)."""
+"""NKR UDP Protocol v3 packing and validation (little-endian)."""
 
 import struct
 
@@ -28,14 +28,15 @@ from .packets import ControlPacket, RobotStatePacket, SessionPacket
 # int16  steering
 # int16  brake
 # uint8  requested_mode
+# uint8  requested_light_mode
 # uint16 buttons
 # uint16 buttons_changed
 #
 
-CONTROL_STRUCT = struct.Struct("<HBBIHhhhBHH")
+CONTROL_STRUCT = struct.Struct("<HBBIHhhhBBHH")
 HELLO_STRUCT = struct.Struct("<HBB")
 SESSION_STRUCT = struct.Struct("<HBBII")
-ROBOT_STATE_STRUCT = struct.Struct("<HBBIBB")
+ROBOT_STATE_STRUCT = struct.Struct("<HBBIBBB")
 
 CRC_STRUCT = struct.Struct("<H")
 
@@ -54,6 +55,7 @@ def pack_control(packet: ControlPacket) -> bytes:
         packet.steering,
         packet.brake,
         packet.requested_mode,
+        packet.requested_light_mode,
         packet.buttons,
         packet.buttons_changed,
     )
@@ -72,6 +74,7 @@ def _validate_control(packet: ControlPacket) -> None:
         ("steering", packet.steering, -1000, 1000),
         ("brake", packet.brake, -1000, 1000),
         ("requested_mode", packet.requested_mode, 0, 0xFF),
+        ("requested_light_mode", packet.requested_light_mode, 0, 0xFF),
         ("buttons", packet.buttons, 0, 0xFFFF),
         ("buttons_changed", packet.buttons_changed, 0, 0xFFFF),
     ):
@@ -103,6 +106,7 @@ def unpack_control(data: bytes) -> ControlPacket:
         steering,
         brake,
         requested_mode,
+        requested_light_mode,
         buttons,
         buttons_changed,
     ) = CONTROL_STRUCT.unpack(payload)
@@ -119,6 +123,7 @@ def unpack_control(data: bytes) -> ControlPacket:
     _validate_control(ControlPacket(
         session_id=session_id, sequence=sequence, throttle=throttle,
         steering=steering, brake=brake, requested_mode=requested_mode,
+        requested_light_mode=requested_light_mode,
         buttons=buttons, buttons_changed=buttons_changed,
     ))
 
@@ -129,6 +134,7 @@ def unpack_control(data: bytes) -> ControlPacket:
         steering=steering,
         brake=brake,
         requested_mode=requested_mode,
+        requested_light_mode=requested_light_mode,
         buttons=buttons,
         buttons_changed=buttons_changed,
     )
@@ -147,7 +153,7 @@ def pack_session_response(session_id: int, challenge: int) -> bytes:
 
 
 def unpack_session_challenge(data: bytes) -> SessionPacket:
-    """Validate and decode a v2 challenge received from the gateway."""
+    """Validate and decode a v3 challenge received from the gateway."""
     _validate_packet(data, SESSION_STRUCT)
     magic, version, packet_type, session_id, challenge = SESSION_STRUCT.unpack(data[:-2])
     if magic != MAGIC:
@@ -162,25 +168,26 @@ def unpack_session_challenge(data: bytes) -> SessionPacket:
 def pack_robot_state(packet: RobotStatePacket) -> bytes:
     _validate_uint32("session_id", packet.session_id)
     _validate_uint8("active_mode", packet.active_mode)
+    _validate_uint8("active_light_mode", packet.active_light_mode)
     _validate_uint8("flags", packet.flags)
     return _append_crc(ROBOT_STATE_STRUCT.pack(
         MAGIC, VERSION, TYPE_TELEMETRY, packet.session_id,
-        packet.active_mode, packet.flags,
+        packet.active_mode, packet.active_light_mode, packet.flags,
     ))
 
 
 def unpack_robot_state(data: bytes) -> RobotStatePacket:
     _validate_packet(data, ROBOT_STATE_STRUCT)
-    magic, version, packet_type, session_id, active_mode, flags = (
-        ROBOT_STATE_STRUCT.unpack(data[:-2])
-    )
+    values = ROBOT_STATE_STRUCT.unpack(data[:-2])
+    magic, version, packet_type, session_id = values[:4]
+    active_mode, active_light_mode, flags = values[4:]
     if magic != MAGIC:
         raise ValueError("Invalid magic")
     if version != VERSION:
         raise ValueError("Unsupported protocol version")
     if packet_type != TYPE_TELEMETRY:
         raise ValueError("Unexpected packet type")
-    return RobotStatePacket(session_id, active_mode, flags)
+    return RobotStatePacket(session_id, active_mode, active_light_mode, flags)
 
 
 def _append_crc(payload: bytes) -> bytes:

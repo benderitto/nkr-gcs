@@ -2,6 +2,8 @@ from ..model.operator_model import OperatorModel
 
 import logging
 
+from nkr_protocol.constants import LIGHT_KEEP
+
 from .controller import ControllerState
 from .mapping import InputMapping
 from .sdl_driver import SDLDriver
@@ -50,12 +52,16 @@ class InputManager:
         operator.steering = 0.0
         operator.brake = 0.0
         operator.requested_drive_mode = 0
+        operator.requested_light_mode = LIGHT_KEEP
         operator.buttons = 0
         operator.buttons_changed = 0
 
     def select_drive_mode(self, mode: int) -> None:
         self.mapping.mode_selector.set_mode(mode)
         logger.info("Menu selected drive mode=%d", mode)
+
+    def select_light_mode(self, mode: int) -> None:
+        self.mapping.set_light_mode(mode)
 
     def select_input_device(self, input_device: str) -> None:
         self.mapping.set_input_device(input_device)
